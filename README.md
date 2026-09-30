@@ -60,19 +60,9 @@ all three IO pins as reserved; leave IO3 unconnected.
 
 1. Update the Pill to firmware **2.0.1 or later** (Web UI → Settings → Firmware, or the
    Shelly app).
-2. Check that the firmware offers the script UART mode — `attrs.modes` must contain `js_uart`:
-
-   ```
-   http://<pill-ip>/rpc/Shelly.GetComponents?keys=["pill"]
-   ```
-
-3. Set the peripheral mode to `js_uart`:
-
-   ```
-   http://<pill-ip>/rpc/Pill.SetConfig?config={"mode":"js_uart"}
-   ```
-
-4. Reboot the Pill if the reply says `"restart_required": true`.
+2. In the Shelly app, open the Pill → **Settings** → **Pill Peripheral Settings** and under
+   **Select Peripheral Mode** choose **Serial Communication (UART)** — *Communication with
+   external sensors and systems*. The script log shows this mode as `js_uart`.
 
 You do not need to set the baud rate or parity. The script puts serial port 0 into
 `js_uart` 2400 8E1 on every start and fixes it without a reboot if something changed it —
@@ -250,8 +240,8 @@ The same JSON works as the body of `POST http://<pill-ip>/script/<id>/cn105`.
 | Symptom | Cause / fix |
 |---|---|
 | `No reply to CONNECT, retrying` forever | Wiring (TX/RX crossed, missing GND, level shifter unpowered) or the unit is not powered. Also check that the log says `UART 2400 8E1` — CN105 needs **even parity**. |
-| `Pill is NOT in js_uart mode` or `UART API not available` | The peripheral mode is wrong. Set it to `js_uart` (section 2) and reboot. |
-| `Serial.SetConfig failed` or `boot gave up` | The serial port could not be set to `js_uart` 2400 8E1. Check that the firmware is 2.0.1 or later and the Pill is in `js_uart` mode. |
+| `Pill is NOT in js_uart mode` or `UART API not available` | The peripheral mode is wrong. Select **Serial Communication (UART)** in the Shelly app (section 2). |
+| `Serial.SetConfig failed` or `boot gave up` | The serial port could not be set to `js_uart` 2400 8E1. Check that the firmware is 2.0.1 or later and **Serial Communication (UART)** is selected (section 2). |
 | Script stops right after start with `Too many calls in progress` | More than five RPC calls were in flight. The shipped script never does this; if you added your own `Shelly.call()`s, move them after start-up (see *Start-up order*). |
 | `ERROR: frame truncated … (zero-byte problem)`, or connected but data never arrives | The firmware dropped `0x00` bytes from the frame string. Not seen on 2.0.1; update the firmware. |
 | `VC creation failed (number:205)` | A Number virtual component needs a `default_value` inside `min…max`. The slider takes its range from `MIN_TEMP`/`MAX_TEMP` and computes the default as their midpoint, so this only happens if `MIN_TEMP` > `MAX_TEMP` or they are not numbers. |
