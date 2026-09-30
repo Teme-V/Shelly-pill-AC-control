@@ -19,6 +19,7 @@ The protocol implementation is a port of
 | `cn105_pill.js` | The Shelly script. Paste it into the Pill; edit the `CFG` block only for MQTT / Home Assistant. |
 | `homeassistant/packages/mitsubishi_ac.yaml` | Optional Home Assistant package: climate entity + sensors + extra controls over MQTT. |
 | `docs/pill-peripheral-uart.png` | Screenshot for section 2: selecting the UART peripheral mode in the Shelly app. |
+| `docs/pill-peripheral-uart-webui.png` | Screenshot for section 2: the same selection in the Pill's web UI. |
 
 What you get:
 
@@ -61,11 +62,19 @@ all three IO pins as reserved; leave IO3 unconnected.
 
 1. Update the Pill to firmware **2.0.1 or later** (Web UI → Settings → Firmware, or the
    Shelly app).
-2. In the Shelly app, open the Pill → **Settings** → **Pill Peripheral Settings** and under
-   **Select Peripheral Mode** choose **Serial Communication (UART)** — *Communication with
-   external sensors and systems*. The script log shows this mode as `js_uart`.
+2. Select the **Serial Communication (UART)** peripheral mode, either in the Shelly app or
+   in the Pill's web UI. The script log shows this mode as `js_uart`.
 
-   ![Shelly app: Pill Peripheral Settings with Serial Communication (UART) selected](docs/pill-peripheral-uart.png)
+   * **Shelly app:** open the Pill → **Settings** → **Pill Peripheral Settings** and under
+     **Select Peripheral Mode** choose **Serial Communication (UART)** — *Communication with
+     external sensors and systems*.
+
+     ![Shelly app: Pill Peripheral Settings with Serial Communication (UART) selected](docs/pill-peripheral-uart.png)
+
+   * **Web UI** (`http://<pill-ip>/`): **Home** → **Pill configuration** → **Peripheral setup**
+     → **Serial Communication (UART)**.
+
+     ![Pill web UI: Pill configuration, Peripheral setup list with Serial Communication (UART)](docs/pill-peripheral-uart-webui.png)
 
 You do not need to set the baud rate or parity. The script puts serial port 0 into
 `js_uart` 2400 8E1 on every start and fixes it without a reboot if something changed it —
@@ -258,7 +267,7 @@ The same JSON works as the body of `POST http://<pill-ip>/script/<id>/cn105`.
 | Symptom | Cause / fix |
 |---|---|
 | `No reply to CONNECT, retrying` forever | Wiring (TX/RX crossed, missing GND, level shifter unpowered) or the unit is not powered. Also check that the log says `UART 2400 8E1` — CN105 needs **even parity**. |
-| `Pill is NOT in js_uart mode` or `UART API not available` | The peripheral mode is wrong. Select **Serial Communication (UART)** in the Shelly app (section 2). |
+| `Pill is NOT in js_uart mode` or `UART API not available` | The peripheral mode is wrong. Select **Serial Communication (UART)** in the Shelly app or web UI (section 2). |
 | `Serial.SetConfig failed` or `boot gave up` | The serial port could not be set to `js_uart` 2400 8E1. Check that the firmware is 2.0.1 or later and **Serial Communication (UART)** is selected (section 2). |
 | Script stops right after start with `Too many calls in progress` | More than five RPC calls were in flight. The shipped script never does this; if you added your own `Shelly.call()`s, move them after start-up (see *Start-up order*). |
 | `ERROR: frame truncated … (zero-byte problem)`, or connected but data never arrives | The firmware dropped `0x00` bytes from the frame string. Not seen on 2.0.1; update the firmware. |
