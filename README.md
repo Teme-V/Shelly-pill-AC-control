@@ -18,6 +18,7 @@ The protocol implementation is a port of
 |---|---|
 | `cn105_pill.js` | The Shelly script. Edit the `CFG` block, paste into the Pill, done. |
 | `homeassistant/packages/mitsubishi_ac.yaml` | Home Assistant package: climate entity + sensors + extra controls over MQTT. |
+| `docs/pill-peripheral-uart.png` | Screenshot for section 2: selecting the UART peripheral mode in the Shelly app. |
 
 What you get:
 
@@ -63,6 +64,8 @@ all three IO pins as reserved; leave IO3 unconnected.
 2. In the Shelly app, open the Pill → **Settings** → **Pill Peripheral Settings** and under
    **Select Peripheral Mode** choose **Serial Communication (UART)** — *Communication with
    external sensors and systems*. The script log shows this mode as `js_uart`.
+
+   ![Shelly app: Pill Peripheral Settings with Serial Communication (UART) selected](docs/pill-peripheral-uart.png)
 
 You do not need to set the baud rate or parity. The script puts serial port 0 into
 `js_uart` 2400 8E1 on every start and fixes it without a reboot if something changed it —
