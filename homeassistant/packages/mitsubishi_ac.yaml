@@ -1,0 +1,298 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Mitsubishi Electric heat pump via Shelly Pill (CN105 bridge)
+# Home Assistant package — climate entity + sensors + controls over MQTT
+#
+# Install:
+#   1. Copy this file to <config>/packages/mitsubishi_ac.yaml
+#   2. Make sure configuration.yaml contains:
+#        homeassistant:
+#          packages: !include_dir_named packages
+#   3. Restart Home Assistant (Settings -> System -> Restart).
+#
+# Must match the Shelly script CFG block:
+#   MQTT_PREFIX  "mitsuac"  -> topics  mitsuac/state, mitsuac/set, mitsuac/online
+#   HA_DISC_ID   "mitsuac"  -> unique_id stem "mitsuac_..." and device identifier
+#                              "mitsuac-cn105-pill" (only matters if you also
+#                              turn HA_DISCOVERY on — then the same entity is
+#                              recognised instead of duplicated)
+#   HA_NAME / HA_DEVICE_NAME "MitsubishiAC" -> entity ids become
+#                              climate.mitsubishiac, sensor.mitsubishiac_room_temperature, ...
+# Renaming: search-and-replace "mitsuac" and "MitsubishiAC" in this file.
+# Second heat pump: copy the file, replace both strings with new ones and set
+# the same values in that Pill's script.
+# ─────────────────────────────────────────────────────────────────────────────
+
+mqtt:
+  # ── Climate ────────────────────────────────────────────────────────────────
+  climate:
+    - name: "MitsubishiAC"
+      unique_id: mitsuac_cn105_climate
+      icon: mdi:air-conditioner
+      device: &mitsuac_device
+        identifiers: ["mitsuac-cn105-pill"]
+        name: "MitsubishiAC"
+        manufacturer: "Mitsubishi Electric"
+        model: "CN105 via Shelly Pill"
+      availability_topic: "mitsuac/online"
+      payload_available: "true"
+      payload_not_available: "false"
+
+      min_temp: 16
+      max_temp: 31
+      temp_step: 0.5
+      precision: 0.5
+      temperature_unit: "C"
+
+      # "off" must be quoted — bare off is YAML boolean false
+      modes: ["off", "heat", "dry", "cool", "fan_only", "auto"]
+      fan_modes: ["auto", "quiet", "1", "2", "3", "4"]
+      swing_modes: ["auto", "1", "2", "3", "4", "5", "swing"]
+
+      # Commands -> mitsuac/set (JSON understood by the Pill script)
+      mode_command_topic: "mitsuac/set"
+      mode_command_template: >-
+        {% if value == 'off' %}{"power":"OFF"}{% else %}{"power":"ON","mode":"{{ {'heat':'HEAT','dry':'DRY','cool':'COOL','fan_only':'FAN','auto':'AUTO'}.get(value,'AUTO') }}"}{% endif %}
+      temperature_command_topic: "mitsuac/set"
+      temperature_command_template: '{"temp": {{ value }}}'
+      fan_mode_command_topic: "mitsuac/set"
+      fan_mode_command_template: '{"fan": "{{ value | upper }}"}'
+      swing_mode_command_topic: "mitsuac/set"
+      swing_mode_command_template: '{"vane": "{{ value | upper }}"}'
+
+      # State <- mitsuac/state (one JSON document every poll cycle, ~10 s)
+      mode_state_topic: "mitsuac/state"
+      mode_state_template: >-
+        {% if value_json.power == 'OFF' %}off{% else %}{{ {'HEAT':'heat','DRY':'dry','COOL':'cool','FAN':'fan_only','AUTO':'auto'}.get(value_json.mode,'off') }}{% endif %}
+      temperature_state_topic: "mitsuac/state"
+      temperature_state_template: "{{ value_json.temp }}"
+      current_temperature_topic: "mitsuac/state"
+      current_temperature_template: "{{ value_json.room_temp }}"
+      fan_mode_state_topic: "mitsuac/state"
+      fan_mode_state_template: "{{ value_json.fan | lower }}"
+      swing_mode_state_topic: "mitsuac/state"
+      swing_mode_state_template: "{{ value_json.vane | lower }}"
+      action_topic: "mitsuac/state"
+      action_template: >-
+        {% if value_json.power == 'OFF' %}off{% elif not value_json.operating %}idle{% else %}{{ {'HEAT':'heating','COOL':'cooling','DRY':'drying','FAN':'fan','AUTO':'idle'}.get(value_json.mode,'idle') }}{% endif %}
+
+  # ── Sensors ────────────────────────────────────────────────────────────────
+  sensor:
+    - name: "Room temperature"
+      unique_id: mitsuac_room_temperature
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ value_json.room_temp }}"
+      device_class: temperature
+      state_class: measurement
+      unit_of_measurement: "°C"
+      availability_topic: "mitsuac/online"
+      payload_available: "true"
+      payload_not_available: "false"
+
+    - name: "Target temperature"
+      unique_id: mitsuac_target_temperature
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ value_json.temp }}"
+      device_class: temperature
+      state_class: measurement
+      unit_of_measurement: "°C"
+      icon: mdi:thermostat
+      availability_topic: "mitsuac/online"
+      payload_available: "true"
+      payload_not_available: "false"
+
+    # Not every indoor unit reports an outdoor temperature — the entity is
+    # "unavailable" (not 0) while the pump sends null.
+    - name: "Outside temperature"
+      unique_id: mitsuac_outside_temperature
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ value_json.outside_temp }}"
+      device_class: temperature
+      state_class: measurement
+      unit_of_measurement: "°C"
+      availability_mode: all
+      availability:
+        - topic: "mitsuac/online"
+          payload_available: "true"
+          payload_not_available: "false"
+        - topic: "mitsuac/state"
+          value_template: "{{ 'online' if value_json.outside_temp is not none else 'offline' }}"
+
+    - name: "Compressor frequency"
+      unique_id: mitsuac_compressor_frequency
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ value_json.compressor_hz }}"
+      state_class: measurement
+      unit_of_measurement: "Hz"
+      icon: mdi:sine-wave
+      availability_topic: "mitsuac/online"
+      payload_available: "true"
+      payload_not_available: "false"
+
+    # Input power / energy / runtime are reported by some units only — others
+    # send a constant 0. Delete the entities you do not need.
+    - name: "Input power"
+      unique_id: mitsuac_input_power
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ value_json.input_power_w }}"
+      device_class: power
+      state_class: measurement
+      unit_of_measurement: "W"
+      availability_topic: "mitsuac/online"
+      payload_available: "true"
+      payload_not_available: "false"
+
+    - name: "Energy"
+      unique_id: mitsuac_energy
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ value_json.energy_kwh }}"
+      device_class: energy
+      state_class: total_increasing
+      unit_of_measurement: "kWh"
+      availability_topic: "mitsuac/online"
+      payload_available: "true"
+      payload_not_available: "false"
+
+    - name: "Runtime"
+      unique_id: mitsuac_runtime
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ value_json.runtime_hours | round(1) }}"
+      state_class: total_increasing
+      unit_of_measurement: "h"
+      icon: mdi:timer-outline
+      entity_category: diagnostic
+      availability_topic: "mitsuac/online"
+      payload_available: "true"
+      payload_not_available: "false"
+
+    # Raw values as the pump reports them (HEAT/COOL/..., AUTO/QUIET/1-4, ...)
+    - name: "Operating mode"
+      unique_id: mitsuac_operating_mode
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ value_json.mode }}"
+      icon: mdi:hvac
+      entity_category: diagnostic
+      availability_topic: "mitsuac/online"
+      payload_available: "true"
+      payload_not_available: "false"
+
+    - name: "Fan speed"
+      unique_id: mitsuac_fan_speed
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ value_json.fan }}"
+      icon: mdi:fan
+      entity_category: diagnostic
+      availability_topic: "mitsuac/online"
+      payload_available: "true"
+      payload_not_available: "false"
+
+    - name: "Vane position"
+      unique_id: mitsuac_vane_position
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ value_json.vane }}"
+      icon: mdi:arrow-up-down
+      entity_category: diagnostic
+      availability_topic: "mitsuac/online"
+      payload_available: "true"
+      payload_not_available: "false"
+
+  # ── Binary sensors ─────────────────────────────────────────────────────────
+  binary_sensor:
+    - name: "Power"
+      unique_id: mitsuac_power
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ 'ON' if value_json.power == 'ON' else 'OFF' }}"
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: power
+      availability_topic: "mitsuac/online"
+      payload_available: "true"
+      payload_not_available: "false"
+
+    - name: "Operating"
+      unique_id: mitsuac_operating
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ 'ON' if value_json.operating else 'OFF' }}"
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: running
+      availability_topic: "mitsuac/online"
+      payload_available: "true"
+      payload_not_available: "false"
+
+    # CN105 link between the Pill and the indoor unit
+    - name: "Heat pump connected"
+      unique_id: mitsuac_connected
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ 'ON' if value_json.connected else 'OFF' }}"
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: connectivity
+      entity_category: diagnostic
+      availability_topic: "mitsuac/online"
+      payload_available: "true"
+      payload_not_available: "false"
+
+    - name: "i-See sensor"
+      unique_id: mitsuac_isee
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ 'ON' if value_json.iSee else 'OFF' }}"
+      payload_on: "ON"
+      payload_off: "OFF"
+      icon: mdi:eye
+      entity_category: diagnostic
+      availability_topic: "mitsuac/online"
+      payload_available: "true"
+      payload_not_available: "false"
+
+  # ── Controls not covered by the climate entity ─────────────────────────────
+  select:
+    # Horizontal airflow direction (wide vane)
+    - name: "Horizontal vane"
+      unique_id: mitsuac_horizontal_vane
+      device: *mitsuac_device
+      options: ["<<", "<", "|", ">", ">>", "<>", "SWING"]
+      command_topic: "mitsuac/set"
+      command_template: '{"wideVane": "{{ value }}"}'
+      state_topic: "mitsuac/state"
+      value_template: "{{ value_json.wideVane }}"
+      icon: mdi:arrow-left-right
+      availability_topic: "mitsuac/online"
+      payload_available: "true"
+      payload_not_available: "false"
+
+  number:
+    # Feed an external room temperature to the pump (0 = use its own sensor).
+    # The script re-sends it every 20 s and falls back to the internal sensor
+    # if it has not been refreshed for 30 min — write it from an automation.
+    - name: "Remote temperature"
+      unique_id: mitsuac_remote_temperature
+      device: *mitsuac_device
+      min: 0
+      max: 40
+      step: 0.5
+      mode: box
+      unit_of_measurement: "°C"
+      device_class: temperature
+      command_topic: "mitsuac/set"
+      command_template: '{"remote_temp": {{ value }}}'
+      state_topic: "mitsuac/state"
+      value_template: "{{ value_json.remote_temp }}"
+      icon: mdi:thermometer-plus
+      entity_category: config
+      availability_topic: "mitsuac/online"
+      payload_available: "true"
+      payload_not_available: "false"
