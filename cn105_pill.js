@@ -38,7 +38,7 @@
  *   - no setTimeout -> Timer.set()
  *   - no forEach/map/filter -> for loops
  * 
- * version 20260930
+ * version 20260930-2
  */
 
 // ═══════════════════════════════════════════════════════════════════
@@ -66,22 +66,25 @@ let CFG = {
 
   INSTALLER_MODE: false,     // true -> CONNECT 0x5B (only if 0x5A is not enough)
 
-  // ── MQTT broker ───────────────────────────────────────────────────
+  // ── MQTT (optional: Home Assistant / other MQTT systems) ──────────
+  // MQTT_ENABLE is the master switch. false = no MQTT at all: Shelly app and
+  // HTTP control only, no MQTT RPCs, warnings or HA discovery.
+  // true = publish <prefix>/state and accept JSON commands on <prefix>/set.
   // If MQTT_HOST is non-empty the script writes these into the Pill's own
   // MQTT settings (Mqtt.SetConfig) on boot and reboots ONCE to apply them.
   // Leave MQTT_HOST "" to keep whatever you configured in the Shelly web UI
   // (then set the web UI "MQTT prefix" to the same value as MQTT_PREFIX so
   // the Home Assistant package finds the availability topic <prefix>/online).
+  MQTT_ENABLE: false,        // true = use MQTT (required for Home Assistant)
   MQTT_HOST: "",             // broker IP or hostname, e.g. "192.168.1.10"
   MQTT_PORT: 1883,
   MQTT_USER: "",             // "" = anonymous
   MQTT_PASS: "",
-  MQTT_ENABLE: true,         // publish <prefix>/state, subscribe <prefix>/set
   MQTT_PREFIX: "mitsuac",    // topic prefix — must match the HA package YAML
 
   HTTP_ENDPOINT: "cn105",    // http://<pill-ip>/script/<id>/cn105
 
-  // ── Home Assistant ────────────────────────────────────────────────
+  // ── Home Assistant (needs MQTT_ENABLE: true) ──────────────────────
   // Option A (default): use homeassistant/packages/mitsubishi_ac.yaml from
   //   the kit — it defines the climate entity AND extra sensors. Keep
   //   HA_DISCOVERY false so the same climate is not announced twice.
@@ -602,6 +605,10 @@ function mqttSig() {
 }
 
 function mqttEnsure() {
+  if (!CFG.MQTT_ENABLE) {
+    if (CFG.MQTT_HOST) { print("[cn105] NOTE: MQTT_HOST is set but MQTT_ENABLE is false — MQTT stays off"); }
+    return;
+  }
   if (!CFG.MQTT_HOST) { mqttPrefixCheck(); return; }
   Shelly.call("Mqtt.GetConfig", {}, mqttEnsureCb1, null);
 }
@@ -740,7 +747,7 @@ function haDiscoveryJson() {
 }
 
 function haDiscoveryPublish() {
-  if (!CFG.HA_DISCOVERY || typeof MQTT === "undefined" || !MQTT.isConnected()) { return; }
+  if (!CFG.MQTT_ENABLE || !CFG.HA_DISCOVERY || typeof MQTT === "undefined" || !MQTT.isConnected()) { return; }
   MQTT.publish(CFG.HA_DISC_PREFIX + "/climate/" + CFG.HA_DISC_ID + "/config",
                haDiscoveryJson(), 0, true);
   haDiscPublished = true;
@@ -753,7 +760,7 @@ function haStatusCb(topic, msg) {
 }
 
 function haDiscoveryInit() {
-  if (!CFG.HA_DISCOVERY || typeof MQTT === "undefined") { return; }
+  if (!CFG.MQTT_ENABLE || !CFG.HA_DISCOVERY || typeof MQTT === "undefined") { return; }
   MQTT.subscribe(CFG.HA_DISC_PREFIX + "/status", haStatusCb, null);
   Timer.set(10000, true, function () {
     if (!haDiscPublished) { haDiscoveryPublish(); }

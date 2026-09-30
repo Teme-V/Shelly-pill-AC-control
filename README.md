@@ -95,16 +95,15 @@ example shows `jsuart`. The script accepts both spellings.
    ```
 
    The exact order of the lines can vary. `Fixing Serial config` appears only when the
-   serial port was not already 2400 8E1. Without MQTT the log also shows
-   `WARNING: device MQTT is disabled …` at every start — ignore it if you do not use MQTT
-   or Home Assistant.
+   serial port was not already 2400 8E1. With the default `MQTT_ENABLE: false` the script
+   does not touch MQTT at all.
 
 ### Start-up order
 
 Firmware 2.0.1 stops a script that has more than five RPC calls in flight at once
 (`Too many calls in progress`). The script therefore starts in stages, one after another:
 serial port and CN105 link first, then diagnostics, then the virtual components and
-finally the MQTT broker settings (only when `MQTT_HOST` is set, section 4). If you add your
+finally the MQTT broker settings (only with `MQTT_ENABLE: true` and `MQTT_HOST` set, section 4). If you add your
 own `Shelly.call()`s, start them after the `Virtual components ready` line, not at the top
 level of the script.
 
@@ -118,9 +117,11 @@ broker as the Pill.
 
 ### MQTT settings in the script
 
-Edit the `CFG` block at the top of `cn105_pill.js` and save the script again:
+Edit the `CFG` block at the top of `cn105_pill.js` and save the script again.
+`MQTT_ENABLE` is the master switch — with the default `false` nothing below is used:
 
 ```js
+MQTT_ENABLE: true,           // turn MQTT on (default false = Shelly app and HTTP only)
 MQTT_HOST: "192.168.1.10",   // your broker ("" = configure MQTT in the web UI instead)
 MQTT_PORT: 1883,
 MQTT_USER: "mqtt",
@@ -135,7 +136,7 @@ HA_DEVICE_NAME: "MitsubishiAC",
 
 ### How the MQTT broker settings are applied
 
-If `MQTT_HOST` is set, the script writes host/port/user/password into the Pill's own MQTT
+If `MQTT_ENABLE` is `true` and `MQTT_HOST` is set, the script writes host/port/user/password into the Pill's own MQTT
 component on first start and **reboots the Pill once** to activate it. This is the last
 start-up stage, so the reboot never interrupts the creation of the virtual components. It also sets the
 Shelly MQTT **prefix** to `MQTT_PREFIX`, so the device's online/offline (LWT) topic becomes
@@ -183,7 +184,7 @@ between the two later HA keeps the same entities instead of creating duplicates.
 
 ### Option B — MQTT discovery (no YAML)
 
-Set `HA_DISCOVERY: true` in the script and do not install the package. The script publishes
+Set `HA_DISCOVERY: true` (together with `MQTT_ENABLE: true`) in the script and do not install the package. The script publishes
 a retained discovery message for the climate entity and re-publishes it every time HA
 starts (it listens to HA's birth message on `homeassistant/status`), so the entity survives
 broker restarts and HA restarts without any manual step. You get the climate entity only —
@@ -223,7 +224,7 @@ and need no change.
 
 ## 5. MQTT reference
 
-Only when MQTT is set up (section 4).
+Only when MQTT is set up (section 4, `MQTT_ENABLE: true`).
 
 State — `<prefix>/state`, published after every poll cycle (~10 s):
 
@@ -262,8 +263,9 @@ The same JSON works as the body of `POST http://<pill-ip>/script/<id>/cn105`.
 | Script stops right after start with `Too many calls in progress` | More than five RPC calls were in flight. The shipped script never does this; if you added your own `Shelly.call()`s, move them after start-up (see *Start-up order*). |
 | `ERROR: frame truncated … (zero-byte problem)`, or connected but data never arrives | The firmware dropped `0x00` bytes from the frame string. Not seen on 2.0.1; update the firmware. |
 | `VC creation failed (number:205)` | A Number virtual component needs a `default_value` inside `min…max`. The slider takes its range from `MIN_TEMP`/`MAX_TEMP` and computes the default as their midpoint, so this only happens if `MIN_TEMP` > `MAX_TEMP` or they are not numbers. |
-| Entities `unavailable` in HA | The availability topic is `<MQTT_PREFIX>/online`. Check in MQTT Explorer that it exists and is `true`; if the Pill publishes under another prefix, set the web UI MQTT prefix to `MQTT_PREFIX` (or set `MQTT_HOST` so the script does it). |
-| `WARNING: device MQTT is disabled` | Harmless if you do not use MQTT or Home Assistant. Otherwise set up MQTT as in section 4. |
+| Entities `unavailable` in HA | Check that `MQTT_ENABLE` is `true`. The availability topic is `<MQTT_PREFIX>/online`. Check in MQTT Explorer that it exists and is `true`; if the Pill publishes under another prefix, set the web UI MQTT prefix to `MQTT_PREFIX` (or set `MQTT_HOST` so the script does it). |
+| `WARNING: device MQTT is disabled` | `MQTT_ENABLE` is `true` but MQTT is off on the Pill. Set `MQTT_HOST` in the script or enable MQTT in the web UI (section 4). |
+| `NOTE: MQTT_HOST is set but MQTT_ENABLE is false` | MQTT is still off. Set `MQTT_ENABLE: true` to use the broker settings. |
 | MQTT shows *disconnected* in the Pill web UI | Wrong host/port/credentials. The broker port is usually 1883 — not 1880 (Node-RED) or 8123 (HA). |
 | Both a discovery entity and a package entity | `HA_DISCOVERY` is `true` **and** the package is installed. Pick one; with identical `unique_id`s HA ignores the second and logs a warning. |
 | Pill reboots once right after the first start | Expected: the script applied the MQTT broker settings. It does not happen again unless you change them. |
