@@ -1,9 +1,9 @@
 # Mitsubishi Electric heat pump control with a Shelly Pill (CN105)
 
-Control a Mitsubishi Electric indoor unit from the Shelly app and Home Assistant
-using nothing but a **Shelly Pill** plugged into the unit's **CN105** service port.
-No ESPHome, no extra microcontroller — one Shelly script does the CN105 protocol,
-the Shelly app controls, MQTT and (optionally) Home Assistant discovery.
+Control a Mitsubishi Electric indoor unit from the Shelly app — and optionally from
+Home Assistant over MQTT — using nothing but a **Shelly Pill** plugged into the unit's
+**CN105** service port. No ESPHome, no extra microcontroller — one Shelly script does the
+CN105 protocol and the Shelly app controls; MQTT and Home Assistant are optional add-ons.
 
 **Requires The Pill firmware 2.0.1 or later** (the `js_uart` peripheral mode first
 appeared in 2.0.1).
@@ -16,21 +16,21 @@ The protocol implementation is a port of
 
 | File | Purpose |
 |---|---|
-| `cn105_pill.js` | The Shelly script. Edit the `CFG` block, paste into the Pill, done. |
-| `homeassistant/packages/mitsubishi_ac.yaml` | Home Assistant package: climate entity + sensors + extra controls over MQTT. |
+| `cn105_pill.js` | The Shelly script. Paste it into the Pill; edit the `CFG` block only for MQTT / Home Assistant. |
+| `homeassistant/packages/mitsubishi_ac.yaml` | Optional Home Assistant package: climate entity + sensors + extra controls over MQTT. |
 | `docs/pill-peripheral-uart.png` | Screenshot for section 2: selecting the UART peripheral mode in the Shelly app. |
 
 What you get:
 
 * **Shelly app**: a virtual device (group) with Power, Mode, Fan, Vane, Wide vane,
   Target temperature (slider) and Room temperature (read-only).
-* **MQTT**: `<prefix>/state` (JSON, every ~10 s) and `<prefix>/set` (JSON commands).
-* **Home Assistant**: a `climate` entity (mode, target temperature, fan, vertical vane,
+* **HTTP**: `GET/POST http://<pill-ip>/script/<id>/cn105` returns the state; POST a JSON
+  command body to control.
+* **MQTT** (optional): `<prefix>/state` (JSON, every ~10 s) and `<prefix>/set` (JSON commands).
+* **Home Assistant** (optional, over MQTT): a `climate` entity (mode, target temperature, fan, vertical vane,
   hvac_action), sensors (room/target/outside temperature, compressor frequency, power,
   energy, runtime, raw mode/fan/vane), binary sensors (power, operating, link status,
   i-See), a horizontal-vane `select` and a `number` to feed an external room temperature.
-* **HTTP**: `GET/POST http://<pill-ip>/script/<id>/cn105` returns the state; POST a JSON
-  command body to control.
 
 ## 1. Hardware
 
@@ -76,42 +76,16 @@ example shows `jsuart`. The script accepts both spellings.
 
 ## 3. Install the script
 
-1. Open `cn105_pill.js` and edit the `CFG` block at the top:
+1. Web UI → **Scripts** → **Add script**, paste the whole `cn105_pill.js`, **Save**, **Start**,
+   and enable **Run on startup**. For control from the Shelly app the file needs no changes;
+   the `CFG` block is edited only for MQTT / Home Assistant (section 4). Optional:
+   `VC_GROUP_NAME` sets the name of the virtual device in the Shelly app.
 
-   ```js
-   MQTT_HOST: "192.168.1.10",   // your broker ("" = configure MQTT in the web UI instead)
-   MQTT_PORT: 1883,
-   MQTT_USER: "mqtt",
-   MQTT_PASS: "secret",
-   MQTT_PREFIX: "mitsuac",      // topic prefix, must match the HA package
-
-   HA_DISCOVERY: false,         // false = use the HA package (default), true = script announces the climate itself
-   HA_DISC_ID: "mitsuac",       // KEEP STABLE — changing it creates a new entity in HA
-   HA_NAME: "MitsubishiAC",
-   HA_DEVICE_NAME: "MitsubishiAC",
-   VC_GROUP_NAME: "MitsubishiAC"
-   ```
-
-2. Web UI → **Scripts** → **Add script**, paste the whole file, **Save**, **Start**,
-   and enable **Run on startup**.
-
-3. Watch the script log. The first start with `MQTT_HOST` set looks like this:
+2. Watch the script log. A start looks like this, and a state line follows every poll
+   cycle (~10 s):
 
    ```
    [cn105] Fixing Serial config -> js_uart 2400 8E1
-   [cn105] UART 2400 8E1
-   [cn105] Connected to heat pump (0x7A)
-   [cn105] fw=2.0.1 app=Pill
-   [cn105] Pill mode="js_uart" pin0="reserved" pin1="reserved" pin2="reserved"
-   [cn105] Virtual components ready (group MitsubishiAC)
-   [cn105] Applying MQTT broker 192.168.1.10:1883 user=mqtt prefix=mitsuac (attempt 1)
-   [cn105] MQTT config applied — rebooting once to activate it
-   ```
-
-   After that reboot, and on every later start, the MQTT lines are gone and a state line
-   follows every poll cycle (~10 s):
-
-   ```
    [cn105] UART 2400 8E1
    [cn105] Connected to heat pump (0x7A)
    [cn105] fw=2.0.1 app=Pill
@@ -121,15 +95,43 @@ example shows `jsuart`. The script accepts both spellings.
    ```
 
    The exact order of the lines can vary. `Fixing Serial config` appears only when the
-   serial port was not already 2400 8E1.
+   serial port was not already 2400 8E1. Without MQTT the log also shows
+   `WARNING: device MQTT is disabled …` at every start — ignore it if you do not use MQTT
+   or Home Assistant.
 
 ### Start-up order
 
 Firmware 2.0.1 stops a script that has more than five RPC calls in flight at once
 (`Too many calls in progress`). The script therefore starts in stages, one after another:
 serial port and CN105 link first, then diagnostics, then the virtual components and
-finally the MQTT broker settings. If you add your own `Shelly.call()`s, start them after
-the `Virtual components ready` line, not at the top level of the script.
+finally the MQTT broker settings (only when `MQTT_HOST` is set, section 4). If you add your
+own `Shelly.call()`s, start them after the `Virtual components ready` line, not at the top
+level of the script.
+
+## 4. MQTT and Home Assistant (optional)
+
+Home Assistant talks to the script over MQTT. Skip this section if you only use the Shelly
+app. The same MQTT topics also work with other systems, such as Node-RED (section 5).
+
+You need an MQTT broker and, for Home Assistant, the MQTT integration connected to the same
+broker as the Pill.
+
+### MQTT settings in the script
+
+Edit the `CFG` block at the top of `cn105_pill.js` and save the script again:
+
+```js
+MQTT_HOST: "192.168.1.10",   // your broker ("" = configure MQTT in the web UI instead)
+MQTT_PORT: 1883,
+MQTT_USER: "mqtt",
+MQTT_PASS: "secret",
+MQTT_PREFIX: "mitsuac",      // topic prefix, must match the HA package
+
+HA_DISCOVERY: false,         // false = use the HA package (default), true = script announces the climate itself
+HA_DISC_ID: "mitsuac",       // KEEP STABLE — changing it creates a new entity in HA
+HA_NAME: "MitsubishiAC",
+HA_DEVICE_NAME: "MitsubishiAC",
+```
 
 ### How the MQTT broker settings are applied
 
@@ -148,9 +150,19 @@ A signature of the applied values is stored in the Pill's KVS, so:
 If you prefer to configure MQTT by hand (`MQTT_HOST: ""`), set the **MQTT prefix** in the
 web UI to the same value as `MQTT_PREFIX`; the script logs a warning if they differ.
 
-## 4. Home Assistant
+The first start with `MQTT_HOST` set looks like this:
 
-You need the MQTT integration connected to the same broker as the Pill.
+```
+[cn105] UART 2400 8E1
+[cn105] Connected to heat pump (0x7A)
+[cn105] fw=2.0.1 app=Pill
+[cn105] Pill mode="js_uart" pin0="reserved" pin1="reserved" pin2="reserved"
+[cn105] Virtual components ready (group MitsubishiAC)
+[cn105] Applying MQTT broker 192.168.1.10:1883 user=mqtt prefix=mitsuac (attempt 1)
+[cn105] MQTT config applied — rebooting once to activate it
+```
+
+After that reboot, and on every later start, the MQTT lines are gone.
 
 ### Option A — package (default, recommended)
 
@@ -211,6 +223,8 @@ and need no change.
 
 ## 5. MQTT reference
 
+Only when MQTT is set up (section 4).
+
 State — `<prefix>/state`, published after every poll cycle (~10 s):
 
 ```json
@@ -249,6 +263,7 @@ The same JSON works as the body of `POST http://<pill-ip>/script/<id>/cn105`.
 | `ERROR: frame truncated … (zero-byte problem)`, or connected but data never arrives | The firmware dropped `0x00` bytes from the frame string. Not seen on 2.0.1; update the firmware. |
 | `VC creation failed (number:205)` | A Number virtual component needs a `default_value` inside `min…max`. The slider takes its range from `MIN_TEMP`/`MAX_TEMP` and computes the default as their midpoint, so this only happens if `MIN_TEMP` > `MAX_TEMP` or they are not numbers. |
 | Entities `unavailable` in HA | The availability topic is `<MQTT_PREFIX>/online`. Check in MQTT Explorer that it exists and is `true`; if the Pill publishes under another prefix, set the web UI MQTT prefix to `MQTT_PREFIX` (or set `MQTT_HOST` so the script does it). |
+| `WARNING: device MQTT is disabled` | Harmless if you do not use MQTT or Home Assistant. Otherwise set up MQTT as in section 4. |
 | MQTT shows *disconnected* in the Pill web UI | Wrong host/port/credentials. The broker port is usually 1883 — not 1880 (Node-RED) or 8123 (HA). |
 | Both a discovery entity and a package entity | `HA_DISCOVERY` is `true` **and** the package is installed. Pick one; with identical `unique_id`s HA ignores the second and logs a warning. |
 | Pill reboots once right after the first start | Expected: the script applied the MQTT broker settings. It does not happen again unless you change them. |
