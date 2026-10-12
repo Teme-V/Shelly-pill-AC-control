@@ -16,10 +16,10 @@ The protocol implementation is a port of
 
 | File | Purpose |
 |---|---|
-| `cn105_pill.js` | The Shelly script. Paste it into the Pill; edit the `CFG` block only for MQTT / Home Assistant. |
-| `homeassistant/packages/mitsubishi_ac.yaml` | Optional Home Assistant package: climate entity + sensors + extra controls over MQTT. |
-| `docs/pill-peripheral-uart.png` | Screenshot for section 2: selecting the UART peripheral mode in the Shelly app. |
-| `docs/pill-peripheral-uart-webui.png` | Screenshot for section 2: the same selection in the Pill's web UI. |
+| `mitsubishi_cn105.shelly.js` | The Shelly script. Paste it into the Pill; edit the `CFG` block only for MQTT / Home Assistant. |
+| `homeassistant/mitsubishi_ac.yaml` | Optional Home Assistant package: climate entity + sensors + extra controls over MQTT. |
+| `../../docs/pill-peripheral-uart.png` | Screenshot for section 2: selecting the UART peripheral mode in the Shelly app. |
+| `../../docs/pill-peripheral-uart-webui.png` | Screenshot for section 2: the same selection in the Pill's web UI. |
 
 What you get:
 
@@ -69,12 +69,12 @@ all three IO pins as reserved; leave IO3 unconnected.
      **Select Peripheral Mode** choose **Serial Communication (UART)** — *Communication with
      external sensors and systems*.
 
-     ![Shelly app: Pill Peripheral Settings with Serial Communication (UART) selected](docs/pill-peripheral-uart.png)
+     ![Shelly app: Pill Peripheral Settings with Serial Communication (UART) selected](../../docs/pill-peripheral-uart.png)
 
    * **Web UI** (`http://<pill-ip>/`): **Home** → **Pill configuration** → **Peripheral setup**
      → **Serial Communication (UART)**.
 
-     ![Pill web UI: Pill configuration, Peripheral setup list with Serial Communication (UART)](docs/pill-peripheral-uart-webui.png)
+     ![Pill web UI: Pill configuration, Peripheral setup list with Serial Communication (UART)](../../docs/pill-peripheral-uart-webui.png)
 
 You do not need to set the baud rate or parity. The script puts serial port 0 into
 `js_uart` 2400 8E1 on every start and fixes it without a reboot if something changed it —
@@ -85,7 +85,7 @@ example shows `jsuart`. The script accepts both spellings.
 
 ## 3. Install the script
 
-1. Web UI → **Scripts** → **Add script**, paste the whole `cn105_pill.js`, **Save**, **Start**,
+1. Web UI → **Scripts** → **Add script**, paste the whole `mitsubishi_cn105.shelly.js`, **Save**, **Start**,
    and enable **Run on startup**. For control from the Shelly app the file needs no changes;
    the `CFG` block is edited only for MQTT / Home Assistant (section 4). Optional:
    `VC_GROUP_NAME` sets the name of the virtual device in the Shelly app.
@@ -126,7 +126,7 @@ broker as the Pill.
 
 ### MQTT settings in the script
 
-Edit the `CFG` block at the top of `cn105_pill.js` and save the script again.
+Edit the `CFG` block at the top of `mitsubishi_cn105.shelly.js` and save the script again.
 `MQTT_ENABLE` is the master switch — with the default `false` nothing below is used:
 
 ```js
@@ -176,7 +176,7 @@ After that reboot, and on every later start, the MQTT lines are gone.
 
 ### Option A — package (default, recommended)
 
-1. Copy `homeassistant/packages/mitsubishi_ac.yaml` to `<config>/packages/`.
+1. Copy `homeassistant/mitsubishi_ac.yaml` to `<config>/packages/`.
 2. Make sure `configuration.yaml` loads packages:
 
    ```yaml
