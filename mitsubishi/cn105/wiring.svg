@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Source of wiring.png (CN105 -> MH level shifter with own LDO -> Shelly Pill), drawn from README section 1.
+     Render at 1600 x 1010 px, device scale factor 1, e.g. a headless Chrome screenshot of this file. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1010" viewBox="0 0 1600 1010"
+     font-family="Arial, Helvetica, sans-serif">
+  <defs>
+    <style>
+      .box   { stroke: #222222; stroke-width: 3; }
+      .pin   { stroke: #222222; stroke-width: 2; }
+      .w     { fill: none; stroke-width: 5; stroke-linejoin: round; }
+      .t     { font-size: 22px; font-weight: bold; fill: #222222; text-anchor: middle; dominant-baseline: middle; }
+      .sub   { font-size: 17px; fill: #888888; text-anchor: middle; dominant-baseline: middle; }
+      .lbl   { font-size: 20px; fill: #222222; dominant-baseline: middle; }
+      .end   { text-anchor: end; }
+      .note  { font-size: 17px; fill: #222222; }
+      .wire  { font-size: 17px; dominant-baseline: middle; text-anchor: middle; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1010" fill="#ffffff"/>
+
+  <text x="800" y="44" font-size="34" font-weight="bold" fill="#222222" text-anchor="middle" dominant-baseline="middle">Mitsubishi Electric CN105 -&gt; Shelly Pill (fw 2.0.1, js_uart, 2400 8E1)</text>
+
+  <!-- ===== Boxes ===== -->
+  <!-- CN105 -->
+  <rect class="box" x="40" y="190" width="340" height="430" rx="14" fill="#f4f4f4"/>
+  <text class="t" x="210" y="214">CN105 (indoor unit)</text>
+  <text class="sub" x="210" y="242">JST PA 2.0 mm, PAP-05V-S</text>
+  <text class="lbl" x="60" y="290">1</text><text class="lbl" x="88" y="290">12 V (power only)</text>
+  <text class="lbl" x="60" y="360">2</text><text class="lbl" x="88" y="360">GND</text>
+  <text class="lbl" x="60" y="430">3</text><text class="lbl" x="88" y="430">5 V</text>
+  <text class="lbl" x="60" y="500">4</text><text class="lbl" x="88" y="500">TX from AC</text>
+  <text class="lbl" x="60" y="570">5</text><text class="lbl" x="88" y="570">RX to AC</text>
+  <rect class="pin" x="345" y="275" width="30" height="30" fill="#ff7f0e"/>
+  <rect class="pin" x="345" y="345" width="30" height="30" fill="#222222"/>
+  <rect class="pin" x="345" y="415" width="30" height="30" fill="#d62728"/>
+  <rect class="pin" x="345" y="485" width="30" height="30" fill="#2ca02c"/>
+  <rect class="pin" x="345" y="555" width="30" height="30" fill="#1f77b4"/>
+
+  <!-- Buck converter -->
+  <rect class="box" x="600" y="70" width="320" height="130" rx="14" fill="#fff7e6"/>
+  <text class="t" x="760" y="94">12 V -&gt; 5 V buck converter</text>
+  <text class="sub" x="760" y="120">power for the Pill only</text>
+  <text class="lbl" x="615" y="150">IN+ 12 V</text>
+  <text class="lbl" x="615" y="180">GND</text>
+  <text class="lbl end" x="905" y="150">OUT 5 V</text>
+
+  <!-- Level shifter -->
+  <rect class="box" x="600" y="250" width="320" height="370" rx="14" fill="#eef4fc"/>
+  <text class="t" x="760" y="274">MH level shifter</text>
+  <text class="sub" x="760" y="302">with own 662K / XC6206 LDO</text>
+  <text class="lbl" x="615" y="360">GND</text>
+  <text class="lbl end" x="905" y="360">GND</text>
+  <text class="lbl" x="615" y="430">HV / 5V</text>
+  <text class="lbl end" x="905" y="430">LV / 3V3: n.c.</text>
+  <text class="lbl" x="615" y="500">HV1</text>
+  <text class="lbl end" x="905" y="500">LV1</text>
+  <text class="lbl" x="615" y="570">HV2</text>
+  <text class="lbl end" x="905" y="570">LV2</text>
+  <text class="sub" x="760" y="465">LV (3V3) side from its own LDO</text>
+
+  <!-- Shelly Pill -->
+  <rect class="box" x="1180" y="190" width="360" height="430" rx="14" fill="#eef8ee"/>
+  <text class="t" x="1360" y="214">Shelly Pill</text>
+  <text class="sub" x="1360" y="242">Pill mode js_uart</text>
+  <rect class="pin" x="1180" y="275" width="30" height="30" fill="#cccccc"/>
+  <rect class="pin" x="1180" y="345" width="30" height="30" fill="#cccccc"/>
+  <rect class="pin" x="1180" y="485" width="30" height="30" fill="#cccccc"/>
+  <rect class="pin" x="1180" y="555" width="30" height="30" fill="#cccccc"/>
+  <text class="lbl" x="1225" y="290">USB-C (5 V supply in)</text>
+  <text class="lbl" x="1225" y="360">GND</text>
+  <text class="sub" x="1360" y="430">IO3 not used (reserved)</text>
+  <text class="lbl" x="1225" y="500">IO2 = RX</text>
+  <text class="lbl" x="1225" y="570">IO1 = TX</text>
+
+  <!-- ===== Wires ===== -->
+  <!-- 12 V: CN105 pin 1 -> buck IN+ -->
+  <polyline class="w" stroke="#ff7f0e" points="375,290 470,290 470,150 600,150"/>
+  <text class="wire" x="535" y="132" fill="#ff7f0e">12 V</text>
+  <!-- 5 V: buck OUT -> Pill USB-C -->
+  <polyline class="w" stroke="#d62728" points="920,150 1120,150 1120,290 1180,290"/>
+  <text class="wire" x="1020" y="132" fill="#d62728">5 V via USB-C cable</text>
+  <!-- GND: CN105 pin 2 -> shifter GND -> Pill GND, tap to buck GND -->
+  <polyline class="w" stroke="#222222" points="375,360 600,360"/>
+  <polyline class="w" stroke="#222222" points="920,360 1180,360"/>
+  <polyline class="w" stroke="#222222" points="520,360 520,180 600,180"/>
+  <circle cx="520" cy="360" r="7" fill="#222222"/>
+  <text class="wire" x="1050" y="385" fill="#222222">all GNDs common</text>
+  <!-- 5 V: CN105 pin 3 -> shifter HV -->
+  <polyline class="w" stroke="#d62728" points="375,430 600,430"/>
+  <!-- TX from AC: pin 4 -> HV1 ... LV1 -> IO2 (RX) -->
+  <polyline class="w" stroke="#2ca02c" points="375,500 600,500"/>
+  <polyline class="w" stroke="#2ca02c" points="920,500 1180,500"/>
+  <polygon fill="#2ca02c" points="518,488 542,500 518,512"/>
+  <polygon fill="#2ca02c" points="1038,488 1062,500 1038,512"/>
+  <!-- RX to AC: IO1 (TX) -> LV2 ... HV2 -> pin 5 -->
+  <polyline class="w" stroke="#1f77b4" points="375,570 600,570"/>
+  <polyline class="w" stroke="#1f77b4" points="920,570 1180,570"/>
+  <polygon fill="#1f77b4" points="542,558 518,570 542,582"/>
+  <polygon fill="#1f77b4" points="1062,558 1038,570 1062,582"/>
+
+  <!-- ===== Notes ===== -->
+  <text class="note" x="40" y="670">- CN105 pin 1 (12 V) is for power only: through the buck converter to the Pill's USB-C. Never connect it to a signal line or to the shifter.</text>
+  <text class="note" x="40" y="698">- The Pill has no 3.3 V output on its terminals, so the shifter needs its own LDO (662K / XC6206); leave its LV / 3V3 pin unconnected.</text>
+  <text class="note" x="40" y="726">- Without that LDO the Pill reads the unit but its commands never arrive ("reads but does not write").</text>
+  <text class="note" x="40" y="754">- Firmware 2.0.1: IO1 = TX, IO2 = RX, IO3 reserved. The script sets the port to 2400 8E1 (even parity) on every start.</text>
+  <text class="note" x="40" y="782">- Before wiring: switch the indoor unit off at the mains. Insulate every joint separately with heat shrink.</text>
+
+  <!-- ===== Warning: CN-CNT has the same housing ===== -->
+  <rect x="40" y="815" width="1520" height="175" rx="14" fill="#fcebeb" stroke="#d62728" stroke-width="3"/>
+  <circle cx="100" cy="902" r="42" fill="#d62728"/>
+  <rect x="72" y="894" width="56" height="16" fill="#ffffff"/>
+  <text x="165" y="840" font-size="22" font-weight="bold" fill="#d62728" dominant-baseline="middle">NEVER plug a Panasonic CN-CNT cable or adapter into CN105.</text>
+  <text x="165" y="870" font-size="17" fill="#222222" dominant-baseline="middle">Same JST PA housing, different pin order: CN105 12 V (pin 1) would hit the adapter's +5 V supply line and CN105 RX (pin 5) its GND.</text>
+  <text x="165" y="894" font-size="17" fill="#222222" dominant-baseline="middle">Wire each adapter for its own port only.</text>
+  <g font-size="19" dominant-baseline="middle">
+    <text x="165" y="924" font-weight="bold" fill="#222222">Pin</text>
+    <text x="300" y="924" font-weight="bold" fill="#222222">1</text>
+    <text x="500" y="924" font-weight="bold" fill="#222222">2</text>
+    <text x="700" y="924" font-weight="bold" fill="#222222">3</text>
+    <text x="900" y="924" font-weight="bold" fill="#222222">4</text>
+    <text x="1100" y="924" font-weight="bold" fill="#222222">5</text>
+    <text x="165" y="950" font-weight="bold" fill="#222222">CN105</text>
+    <text x="300" y="950" fill="#ff7f0e">12 V</text>
+    <text x="500" y="950" fill="#222222">GND</text>
+    <text x="700" y="950" fill="#d62728">5 V</text>
+    <text x="900" y="950" fill="#2ca02c">TX from AC</text>
+    <text x="1100" y="950" fill="#1f77b4">RX to AC</text>
+    <text x="165" y="974" font-weight="bold" fill="#888888">CN-CNT</text>
+    <text x="300" y="974" fill="#888888">+5 V</text>
+    <text x="500" y="974" fill="#888888">TX from AC</text>
+    <text x="700" y="974" fill="#888888">RX to AC</text>
+    <text x="900" y="974" fill="#888888">+12 V</text>
+    <text x="1100" y="974" fill="#888888">GND</text>
+  </g>
+</svg>

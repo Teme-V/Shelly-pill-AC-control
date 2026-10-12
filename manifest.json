@@ -1,0 +1,9 @@
+[
+  {
+    "fname": "mitsubishi/cn105/mitsubishi_cn105.shelly.js",
+    "title": "Mitsubishi Electric CN105",
+    "description": "Controls a Mitsubishi Electric indoor unit through the CN105 service port (UART 2400 8E1, level shifter with its own 3.3 V LDO): virtual device in the Shelly app, HTTP endpoint, optional MQTT and Home Assistant. \n(Requires firmware version: 2.0.1 or newer)",
+    "doc": "mitsubishi/cn105/README.md",
+    "tags": ["the-pill", "uart", "hvac", "heat-pump", "mitsubishi", "cn105"]
+  }
+]
