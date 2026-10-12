@@ -59,6 +59,7 @@ Shelly app or the cloud has not been verified yet.
 ## Repository layout
 
 ```
+LICENSE, NOTICE                   Apache License 2.0 and the credits it refers to
 manifest.json                     Script Library list
 docs/                             pictures shared by all brands (Pill peripheral mode)
 mitsubishi/cn105/
@@ -70,21 +71,24 @@ mitsubishi/cn105/
 
 Conventions: one folder per brand and port, `<brand>/<port>/`, with the script named
 `<brand>_<port>.shelly.js`. Scripts carry a JSDoc header (`@title`, `@description`,
-`@status experimental|production`, `@link`); the Mitsubishi script gets its header with its
-next release. A brand's folder is added when its script is published.
+`@status experimental|production`, `@link`) and an SPDX license header. A brand's folder is
+added when its script is published.
 
+Releases are tagged per brand and port. The current Mitsubishi CN105 kit is
+[`v1.1-mitsubishi-cn105`](https://github.com/Teme-V/Shelly-pill-AC-control/releases/tag/v1.1-mitsubishi-cn105).
 The original single-file layout (`cn105_pill.js` in the repository root) is kept in the tag
 [`v1.0-mitsubishi-cn105`](https://github.com/Teme-V/Shelly-pill-AC-control/tree/v1.0-mitsubishi-cn105),
 so links to it keep working.
 
 ## License and credits
 
-No license file has been added yet; the licenses of the projects credited below are being
-checked first.
+Licensed under the [Apache License 2.0](LICENSE). [NOTICE](NOTICE) lists the projects whose
+protocol work the scripts build on, with their license status.
 
 * Mitsubishi Electric CN105: protocol implementation ported from
   [echavet/MitsubishiCN105ESPHome](https://github.com/echavet/MitsubishiCN105ESPHome),
   original reverse engineering by [SwiCago/HeatPump](https://github.com/SwiCago/HeatPump).
+  No source code from those projects is included.
 
 The sources for other brands are credited in their folders when those are published.
 

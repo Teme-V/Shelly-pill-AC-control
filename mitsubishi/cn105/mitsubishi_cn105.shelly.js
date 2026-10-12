@@ -1,4 +1,26 @@
 /**
+ * @title Mitsubishi Electric CN105 heat pump control for the Shelly Pill
+ * @description Controls a Mitsubishi Electric indoor unit through its CN105
+ *   service port (2400 8E1, level shifter with its own 3.3 V LDO) from the
+ *   Shelly app (virtual components), HTTP and optional MQTT / Home Assistant,
+ *   with an optional BTHome room sensor and defrost state. Pill firmware 2.0.1+.
+ * @status production
+ * @link https://github.com/Teme-V/Shelly-pill-AC-control/tree/main/mitsubishi/cn105
+ */
+
+/*
+ * Copyright 2026 The Shelly-pill-AC-control authors
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy
+ * at http://www.apache.org/licenses/LICENSE-2.0 . Distributed on an "AS IS"
+ * BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.
+ *
+ * CN105 protocol information: SwiCago/HeatPump (original reverse engineering)
+ * and echavet/MitsubishiCN105ESPHome; see NOTICE in the repository root.
+ */
+
+/**
  * cn105_pill.js — Mitsubishi Electric CN105 control on the Shelly Pill 
  * ---------------------------------------------------------------------------
  * Edit ONLY the CFG block below, paste the whole file into a Shelly script
@@ -25,20 +47,58 @@
  *     serialized: UART first, then diagnostics, virtual components and
  *     finally the MQTT broker settings.
  *
+ * Remote temperature from a BTHome sensor paired to the Pill
+ * (CFG.REMOTE_TEMP_BTHOME_ID, e.g. a Shelly BLU H&T):
+ *   - "auto" picks the only temperature sensor (BTHome obj_id 69 or 2);
+ *     every boot lists the candidates as
+ *     "BTHome temperature sensor: id=<id> addr=<mac> value=<t>".
+ *     Several sensors -> set the id explicitly.
+ *   - every new reading of bthomesensor:<id> goes through the same path and
+ *     the same 1-40 C check as {"remote_temp": t}; readings older than
+ *     REMOTE_TEMP_BTHOME_MAX_AGE_S are ignored.
+ *   - a change of >= 0.5 C from the last sent value is sent at once, smaller
+ *     changes go out with the next keepalive (protocol resolution is 0.5 C).
+ *   - no sensor paired, only stale readings or the sensor unpaired -> the
+ *     pump uses its own sensor. "auto" keeps searching every minute, so a
+ *     sensor paired later is taken into use without a script restart.
+ *   - no new readings -> REMOTE_TEMP_TIMEOUT_MS after the last one the pump
+ *     returns to its own sensor.
+ *   - a manual remote_temp (MQTT/HTTP) still works, but the next BTHome
+ *     reading overrides it.
+ *
+ * Sub mode (0x09, polled every cycle; codes from echavet cn105_types.h):
+ *   sub_mode (NORMAL/WARMUP/DEFROST/PREHEAT/STANDBY/OFF), stage and
+ *   auto_sub_mode go to <prefix>/state, plus defrost: true/false; the HA
+ *   climate action shows "defrosting" in HEAT/AUTO. A unit that does not
+ *   answer 0x09 drops it from the poll after 3 timeouts in a row.
+ *
+ * MQTT broker from the script (MQTT_HOST set): MQTT_TLS: true uses TLS with
+ * the Pill's built-in CA bundle (ssl_ca "ca.pem", e.g. Let's Encrypt), port
+ * 8883 unless MQTT_HOST or MQTT_PORT says otherwise; MQTT_RPC: false turns off
+ * Shelly RPC, notifications and MQTT control over MQTT (test broker).
+ *
+ * Frame dump (DEBUG): console line per frame; with MQTT also <prefix>/debug,
+ * lines "T|R|X <hex> @<ms>" = frame sent / valid frame received / raw UART
+ * chunk while there is no link, ms since script start, one message per
+ * DEBUG_FLUSH_MS (max ~1 kB, oldest lines dropped first). DEBUG turns
+ * itself off after DEBUG_AUTO_OFF_MIN; {"debug":true|false} on <prefix>/set
+ * or in the HTTP body switches it at run time (true restarts the auto-off).
+ *
  * Wiring with a 2-channel MH level shifter (CN105 = 5 V TTL, Pill = 3.3 V):
  *   CN105 pin3 5V  -> shifter 5V     (HV reference; 662K LDO produces 3V3)
  *   CN105 pin2 GND -> shifter GND (both sides) -> Pill GND
  *   CN105 pin4 TX  -> shifter HV1 ... LV1 -> Pill IO2 (RX)
  *   CN105 pin5 RX  <- shifter HV2 ... LV2 <- Pill IO1 (TX)
  *   Shifter 3V3 pin: leave unconnected if the module has its own LDO (662K).
- *   CN105 pin1 12V: power supply only via a buck converter, NEVER to signals.
+ *   CN105 pin1 12V: leave unconnected, NEVER to signals or to the Pill.
+ *   Pill 5 V supply: from CN105 pin3 (same wire as the shifter 5V), no buck.
  *
  * Espruino restrictions honored in this script:
  *   - no closures  -> all state kept in globals
  *   - no setTimeout -> Timer.set()
  *   - no forEach/map/filter -> for loops
  * 
- * version 20260930-2
+ * version 20261013-1
  */
 
 // ═══════════════════════════════════════════════════════════════════
@@ -56,10 +116,17 @@ let CFG = {
   CONNECT_TIMEOUT_MS: 10000,
   MAX_FAILS: 5,              // consecutive timeouts -> reconnect
 
-  POLL: [0x02, 0x03, 0x06],  // settings, room temp, status. Add 0x09 if needed
+  POLL: [0x02, 0x03, 0x06, 0x09],  // settings, room temp, status, sub mode (defrost)
 
   REMOTE_TEMP_KEEPALIVE_MS: 20000,    // 0 = off. Kumo sends every 20 s
   REMOTE_TEMP_TIMEOUT_MS: 1800000,    // 0 = off. Fall back to internal sensor
+
+  // Remote temperature from a BTHome sensor paired to the Pill (e.g. BLU H&T):
+  //   "auto" = the only BTHome temperature sensor on the Pill
+  //   number = that bthomesensor id (the boot log lists the candidates)
+  //   -1     = off
+  REMOTE_TEMP_BTHOME_ID: "auto",
+  REMOTE_TEMP_BTHOME_MAX_AGE_S: 900,  // older readings are ignored
 
   MIN_TEMP: 16,
   MAX_TEMP: 31,
@@ -76,10 +143,12 @@ let CFG = {
   // (then set the web UI "MQTT prefix" to the same value as MQTT_PREFIX so
   // the Home Assistant package finds the availability topic <prefix>/online).
   MQTT_ENABLE: false,        // true = use MQTT (required for Home Assistant)
-  MQTT_HOST: "",             // broker IP or hostname, e.g. "192.168.1.10"
-  MQTT_PORT: 1883,
+  MQTT_HOST: "",             // broker IP or hostname, e.g. "192.168.1.10" ("host:port" also works)
+  MQTT_PORT: 1883,           // with MQTT_TLS: true the default 1883 becomes 8883
+  MQTT_TLS: false,           // true = TLS, server checked with the Pill's built-in CA bundle (ca.pem)
   MQTT_USER: "",             // "" = anonymous
   MQTT_PASS: "",
+  MQTT_RPC: true,            // false = no Shelly RPC, notifications or MQTT control over MQTT (test broker)
   MQTT_PREFIX: "mitsuac",    // topic prefix — must match the HA package YAML
 
   HTTP_ENDPOINT: "cn105",    // http://<pill-ip>/script/<id>/cn105
@@ -100,7 +169,9 @@ let CFG = {
   // ── Shelly app (virtual components) ───────────────────────────────
   VC_GROUP_NAME: "MitsubishiAC",  // group shown as its own virtual device in the Shelly app
 
-  DEBUG: false
+  DEBUG: false,              // log every TX/RX frame; with MQTT also <prefix>/debug
+  DEBUG_FLUSH_MS: 2000,      // <prefix>/debug: one message per this period
+  DEBUG_AUTO_OFF_MIN: 1440   // DEBUG switches itself off after this (0 = never)
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -116,6 +187,13 @@ let VANE_B    = [0x00,   0x01, 0x02, 0x03, 0x04, 0x05, 0x07];
 let VANE_M    = ["AUTO", "1",  "2",  "3",  "4",  "5",  "SWING"];
 let WVANE_B   = [0x01,  0x02, 0x03, 0x04, 0x05, 0x08, 0x0c];
 let WVANE_M   = ["<<",  "<",  "|",  ">",  ">>", "<>", "SWING"];
+// 0x09 response: sub mode (d3), stage (d4), AUTO sub mode (d5)
+let SUB_B     = [0x00,     0x01,     0x02,      0x04,      0x08,      0x10];
+let SUB_M     = ["NORMAL", "WARMUP", "DEFROST", "PREHEAT", "STANDBY", "OFF"];
+let STAGE_B   = [0x00,   0x01,  0x02,     0x03,     0x04,       0x05,   0x06];
+let STAGE_M   = ["IDLE", "LOW", "GENTLE", "MEDIUM", "MODERATE", "HIGH", "DIFFUSE"];
+let AUTOSUB_B = [0x00,       0x01,        0x02,        0x03,          0x40,            0x41,        0x43];
+let AUTOSUB_M = ["AUTO_OFF", "AUTO_COOL", "AUTO_HEAT", "AUTO_LEADER", "AUTO_INACTIVE", "AUTO_IDLE", "AUTO_ACTIVE"];
 
 // Control byte bits (CONTROL_PACKET_1 / _2)
 let C1_POWER = 0x01, C1_MODE = 0x02, C1_TEMP = 0x04, C1_FAN = 0x08, C1_VANE = 0x10;
@@ -143,7 +221,8 @@ let cur = {
   power: null, mode: null, temp: -1, fan: null, vane: null, wideVane: null,
   iSee: false,
   roomTemp: null, outsideTemp: null, runtimeHours: null,
-  operating: false, compressorHz: null, inputPowerW: null, kWh: null
+  operating: false, compressorHz: null, inputPowerW: null, kWh: null,
+  subMode: null, stage: null, autoSubMode: null
 };
 
 // Desired settings (waiting to be sent)
@@ -154,6 +233,8 @@ let remoteTemp = 0;           // 0 = use the heat pump's internal sensor
 let remoteTempPending = false;
 let remoteTempSetAt = 0;
 let remoteTempSentAt = 0;
+let remoteTempSource = "internal";  // "manual" | "bthome" (reported as "internal" while remoteTemp is 0)
+let remoteTempSentVal = 0;          // value in the last 0x07 packet
 
 // ═══════════════════════════════════════════════════════════════════
 //  HELPERS: string <-> byte
@@ -183,6 +264,96 @@ function hex(n) {
 }
 
 function dbg(msg) { if (CFG.DEBUG) { print("[cn105] " + msg); } }
+
+// ═══════════════════════════════════════════════════════════════════
+//  FRAME DUMP TO MQTT (<prefix>/debug) AND DEBUG SWITCH
+//  Lines wait in dbgLines and go out as one message per DEBUG_FLUSH_MS; the
+//  oldest lines are dropped beyond DBG_MAX characters. An array, not one
+//  growing string: dropping a line copies nothing (a 4 kB string buffer ran
+//  the Pill out of memory, live 12.10.2026). Flush, auto-off and the
+//  link-down state run from the tick timer: a script may have at most 5 timers.
+// ═══════════════════════════════════════════════════════════════════
+let DBG_MAX = 1024;          // one poll cycle of T/R lines fits; the Pill heap has ~6 kB to spare
+let dbgLines = [];
+let dbgLen = 0;
+let dbgDropped = 0;
+let dbgOffAt = 0;            // uptime ms of the DEBUG auto-off, 0 = none
+let dbgFlushAt = 0;
+let linkPubAt = 0;           // last <prefix>/state while the link is down
+let startMs = 0;
+
+// uptime (monotonic); Date.now() jumps when the clock is synced
+function upMs() {
+  if (typeof Shelly.getUptimeMs === "function") { return Shelly.getUptimeMs(); }
+  return Date.now();
+}
+
+function mqttOk() {
+  return CFG.MQTT_ENABLE && typeof MQTT !== "undefined" && MQTT.isConnected();
+}
+
+// MQTT.subscribe THROWS "MQTT is disabled" while the Pill's own MQTT is off,
+// e.g. on the first start before mqttEnsure() has applied MQTT_HOST; the
+// one-time reboot that follows starts the script again with MQTT on
+function mqttSub(topic, cb) {
+  try {
+    MQTT.subscribe(topic, cb, null);
+  } catch (e) {
+    print("[cn105] MQTT is off on the Pill - " + topic + " not subscribed yet");
+  }
+}
+
+function dbgLine(code, h) {
+  if (!CFG.MQTT_ENABLE) { return; }
+  if (h.length > 0 && h.charAt(h.length - 1) === " ") { h = h.substr(0, h.length - 1); }
+  let l = code + " " + h + " @" + JSON.stringify(upMs() - startMs);
+  dbgLines.push(l);
+  dbgLen += l.length + 1;
+  while (dbgLen > DBG_MAX && dbgLines.length > 1) {
+    dbgLen -= dbgLines[0].length + 1;
+    dbgLines.splice(0, 1);       // fw 2.0.1 has no Array shift/unshift
+    dbgDropped++;
+  }
+}
+
+function dbgFlush() {
+  if (dbgLines.length === 0 || !mqttOk()) { return; }
+  let m = dbgLines.join("\n");
+  if (dbgDropped > 0) { m = "...dropped " + JSON.stringify(dbgDropped) + "\n" + m; }
+  MQTT.publish(CFG.MQTT_PREFIX + "/debug", m, 0, false);
+  dbgLines = [];
+  dbgLen = 0;
+  dbgDropped = 0;
+}
+
+function setDebug(on) {
+  CFG.DEBUG = on;
+  dbgOffAt = (on && CFG.DEBUG_AUTO_OFF_MIN > 0) ? upMs() + CFG.DEBUG_AUTO_OFF_MIN * 60000 : 0;
+  print("[cn105] Debug " + (on ? "on" : "off") + (dbgOffAt > 0 ?
+        ", auto-off in " + JSON.stringify(CFG.DEBUG_AUTO_OFF_MIN) + " min" : ""));
+}
+
+function debugAutoOff() {
+  dbgOffAt = 0;
+  CFG.DEBUG = false;
+  print("[cn105] Debug auto-off");
+  publishMqttState();
+}
+
+// called with every state machine tick
+function auxTick() {
+  let now = upMs();
+  if (dbgOffAt > 0 && now >= dbgOffAt) { debugAutoOff(); }
+  if (now - dbgFlushAt >= CFG.DEBUG_FLUSH_MS) {
+    dbgFlushAt = now;
+    dbgFlush();
+  }
+  // no link -> no poll cycle publishes the state: keep connected:false visible
+  if (!cur.connected && now - linkPubAt >= CFG.CYCLE_MS) {
+    linkPubAt = now;
+    publishMqttState();
+  }
+}
 
 function idxOfByte(arr, v) {
   for (let i = 0; i < arr.length; i++) { if (arr[i] === v) { return i; } }
@@ -252,6 +423,7 @@ function sendFrame(b, newState) {
     let h = "";
     for (let i = 0; i < s.length; i++) { h += hex(B(s, i)) + " "; }
     dbg("TX " + h);
+    dbgLine("T", h);
   }
   let n = uartWrite(s);
   if (typeof n === "number" && n !== s.length) {
@@ -300,6 +472,7 @@ function handleFrame(f) {
     let h = "";
     for (let i = 0; i < f.length; i++) { h += hex(f[i]) + " "; }
     dbg("RX " + h);
+    dbgLine("R", h);
   }
   fails = 0;
   let t = f[1];
@@ -396,8 +569,31 @@ function decodeStatus(f) {
 }
 
 function decodeStandby(f) {
-  // 0x09: d3 = sub mode, d4 = stage, d5 = auto sub mode. Diagnostics only.
-  dbg("standby sub=0x" + hex(f[8]) + " stage=0x" + hex(f[9]) + " auto=0x" + hex(f[10]));
+  // 0x09: d3 = sub mode (DEFROST, PREHEAT …), d4 = stage, d5 = AUTO sub mode.
+  // An unknown byte keeps the previous value (as in echavet).
+  subModeMiss = 0;
+  cur.subMode = mapByte(SUB_B, SUB_M, f[8], cur.subMode);
+  cur.stage = mapByte(STAGE_B, STAGE_M, f[9], cur.stage);
+  cur.autoSubMode = mapByte(AUTOSUB_B, AUTOSUB_M, f[10], cur.autoSubMode);
+  dbg("sub mode 0x" + hex(f[8]) + " stage 0x" + hex(f[9]) + " auto 0x" + hex(f[10]));
+}
+
+// A unit that never answers 0x09 must not stall the poll cycle (the state
+// machine retries the same code): drop 0x09 after 3 timeouts in a row.
+let subModeMiss = 0;
+
+function subModeTimeout() {
+  subModeMiss++;
+  if (subModeMiss < 3) { return; }
+  let p = [];
+  for (let i = 0; i < CFG.POLL.length; i++) {
+    if (CFG.POLL[i] !== 0x09) { p.push(CFG.POLL[i]); }
+  }
+  CFG.POLL = p;
+  pollIdx = 0;
+  nextCycleAt = Date.now() + CFG.CYCLE_MS;
+  print("[cn105] Unit does not answer 0x09 -> sub mode / defrost not available");
+  publishState();
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -471,7 +667,29 @@ function sendRemoteTemp() {
   }
   sendFrame(b, ST_WAIT_ACK);
   remoteTempSentAt = Date.now();
+  remoteTempSentVal = remoteTemp;
   remoteTempPending = false;
+}
+
+// Single entry point for both sources (same 1-40 C check).
+// manual: sent at once, 0/invalid -> internal sensor.
+// bthome: invalid is ignored; sent at once only on a >= 0.5 C change,
+// otherwise the next keepalive carries it. ageS dates the reading for the
+// timeout.
+function setRemoteTemp(v, src, ageS) {
+  let ok = (v >= 1 && v <= 40);
+  if (src === "bthome") {
+    if (!ok) { return; }
+    if (remoteTemp <= 0 || remoteTempSource !== "bthome" ||
+        Math.abs(v - remoteTempSentVal) >= 0.5) { remoteTempPending = true; }
+    remoteTemp = v;
+    remoteTempSetAt = Date.now() - ageS * 1000;
+  } else {
+    remoteTemp = ok ? v : 0;
+    remoteTempSetAt = Date.now();
+    remoteTempPending = true;
+  }
+  remoteTempSource = src;
 }
 
 function remoteTempDue(now) {
@@ -498,6 +716,10 @@ function sendConnect() {
   dbg("CONNECT sent");
 }
 
+// SET waits for the first 0x02 reply after CONNECT: the setpoint encoding
+// (B = half degrees in byte 19, or the legacy table in byte 10) is known only
+// from that reply (decodeSettings sets useTempEncB). Commands that arrive
+// earlier stay merged in `want`. Remote temperature (0x07) is not gated.
 function tick() {
   parseRx();
   let now = Date.now();
@@ -516,6 +738,7 @@ function tick() {
     if ((now - lastSendMs) <= CFG.RESP_TIMEOUT_MS) { return; }
     fails++;
     dbg("timeout, fails=" + JSON.stringify(fails));
+    if (state === ST_WAIT_RESP && CFG.POLL[pollIdx] === 0x09) { subModeTimeout(); }
     if (fails >= CFG.MAX_FAILS) {
       print("[cn105] Connection lost, reconnecting");
       fails = 0;
@@ -526,7 +749,7 @@ function tick() {
   }
 
   // ST_IDLE
-  if (want.dirty) { sendSet(); return; }
+  if (want.dirty && gotFirstSettings) { sendSet(); return; }
   if (remoteTempDue(now)) { sendRemoteTemp(); return; }
   if (pollIdx > 0 || now >= nextCycleAt) {
     sendFrame(newInfoPacket(CFG.POLL[pollIdx]), ST_WAIT_RESP);
@@ -538,6 +761,11 @@ function tick() {
 // ═══════════════════════════════════════════════════════════════════
 function applyCommand(o) {
   let touched = false;
+  // script switch, works without a link too (not saved over a restart)
+  if (o.debug === true || o.debug === false) {
+    setDebug(o.debug);
+    publishMqttState();
+  }
   if (o.power !== undefined && idxOfStr(POWER_M, o.power) >= 0) { want.power = o.power; touched = true; }
   if (o.mode !== undefined && idxOfStr(MODE_M, o.mode) >= 0) { want.mode = o.mode; touched = true; }
   if (o.fan !== undefined && idxOfStr(FAN_M, o.fan) >= 0) { want.fan = o.fan; touched = true; }
@@ -547,12 +775,7 @@ function applyCommand(o) {
     let t = o.temp * 1;
     if (t >= CFG.MIN_TEMP && t <= CFG.MAX_TEMP) { want.temp = t; touched = true; }
   }
-  if (o.remote_temp !== undefined) {
-    let rt = o.remote_temp * 1;
-    remoteTemp = (rt >= 1 && rt <= 40) ? rt : 0;
-    remoteTempSetAt = Date.now();
-    remoteTempPending = true;
-  }
+  if (o.remote_temp !== undefined) { setRemoteTemp(o.remote_temp * 1, "manual", 0); }
   if (touched) { want.dirty = true; }
   return touched;
 }
@@ -567,8 +790,18 @@ function stateJson() {
     operating: cur.operating, compressor_hz: cur.compressorHz,
     input_power_w: cur.inputPowerW, energy_kwh: cur.kWh,
     runtime_hours: cur.runtimeHours,
-    remote_temp: remoteTemp
+    sub_mode: cur.subMode, stage: cur.stage, auto_sub_mode: cur.autoSubMode,
+    defrost: cur.subMode === null ? null : cur.subMode === "DEFROST",
+    remote_temp: remoteTemp,
+    remote_temp_source: remoteTemp > 0 ? remoteTempSource : "internal",
+    remote_temp_age_s: remoteTemp > 0 ? Math.round((Date.now() - remoteTempSetAt) / 1000) : null,
+    debug: CFG.DEBUG
   });
+}
+
+// MQTT only: debug switch and link-down state (no console line, no VC sync)
+function publishMqttState() {
+  if (mqttOk()) { MQTT.publish(CFG.MQTT_PREFIX + "/state", stateJson(), 0, false); }
 }
 
 function publishState() {
@@ -581,10 +814,12 @@ function publishState() {
 
 // ═══════════════════════════════════════════════════════════════════
 //  MQTT BROKER AUTO-CONFIG (device level)
-//  Writes CFG.MQTT_HOST/PORT/USER/PASS/PREFIX into the Pill's own MQTT
-//  component once and reboots to apply. A signature of the applied values
-//  is kept in KVS so a changed password is re-applied but an unchanged
-//  config never causes a reboot loop (max 3 attempts, then it gives up).
+//  Writes CFG.MQTT_HOST/PORT/TLS/USER/PASS/PREFIX/RPC into the Pill's own
+//  MQTT component once and reboots to apply. A signature of the applied
+//  values is kept in KVS so a changed password is re-applied but an
+//  unchanged config never causes a reboot loop (max 3 attempts, then it
+//  gives up). With the defaults (MQTT_TLS false, MQTT_RPC true) the config
+//  object and the signature are the same as in version 20261011-1.
 //  Runs as the LAST boot stage, after the virtual components are created,
 //  and keeps at most two RPCs in flight.
 // ═══════════════════════════════════════════════════════════════════
@@ -592,7 +827,9 @@ let MQTT_KVS_KEY = "cn105_mqtt_applied";
 let mqttCurCfg = null;
 
 function mqttServer() {
-  return CFG.MQTT_HOST + ":" + JSON.stringify(CFG.MQTT_PORT);
+  if (CFG.MQTT_HOST.indexOf(":") >= 0) { return CFG.MQTT_HOST; }
+  let port = (CFG.MQTT_TLS && CFG.MQTT_PORT === 1883) ? 8883 : CFG.MQTT_PORT;
+  return CFG.MQTT_HOST + ":" + JSON.stringify(port);
 }
 
 // change-detection signature only (not a secret hash)
@@ -601,7 +838,14 @@ function mqttSig() {
   for (let i = 0; i < CFG.MQTT_PASS.length; i++) {
     h = ((h * 31) + CFG.MQTT_PASS.charCodeAt(i)) & 0xFFFFFF;
   }
-  return mqttServer() + "|" + CFG.MQTT_USER + "|" + CFG.MQTT_PREFIX + "|" + JSON.stringify(h);
+  return mqttServer() + "|" + CFG.MQTT_USER + "|" + CFG.MQTT_PREFIX + "|" + JSON.stringify(h) +
+         (CFG.MQTT_TLS ? "|tls" : "") + (CFG.MQTT_RPC ? "" : "|norpc");
+}
+
+// the flags are the tail of the signature ([|tls][|norpc]) -> user or
+// prefix text can never be read as a flag
+function sigTail(s, f) {
+  return s.length >= f.length && s.substr(s.length - f.length) === f;
 }
 
 function mqttEnsure() {
@@ -630,6 +874,8 @@ function mqttEnsureCb2(res, err, msg, ud) {
              (mqttCurCfg.server === mqttServer()) &&
              ((mqttCurCfg.user || "") === CFG.MQTT_USER) &&
              (mqttCurCfg.topic_prefix === CFG.MQTT_PREFIX) &&
+             (!CFG.MQTT_TLS || mqttCurCfg.ssl_ca === "ca.pem") &&
+             (CFG.MQTT_RPC || mqttCurCfg.enable_rpc === false) &&
              (prevSig === sig);
   if (same) {
     if (cnt !== 0) { Shelly.call("KVS.Set", { key: MQTT_KVS_KEY, value: sig + "#0" }, null, null); }
@@ -641,16 +887,30 @@ function mqttEnsureCb2(res, err, msg, ud) {
     return;
   }
   let attempt = (prevSig === sig) ? cnt + 1 : 1;
-  print("[cn105] Applying MQTT broker " + mqttServer() + " user=" + (CFG.MQTT_USER || "(none)") +
-        " prefix=" + CFG.MQTT_PREFIX + " (attempt " + JSON.stringify(attempt) + ")");
+  print("[cn105] Applying MQTT broker " + mqttServer() + (CFG.MQTT_TLS ? " TLS" : "") +
+        " user=" + (CFG.MQTT_USER || "(none)") + " prefix=" + CFG.MQTT_PREFIX +
+        (CFG.MQTT_RPC ? "" : " rpc=false") + " (attempt " + JSON.stringify(attempt) + ")");
   Shelly.call("KVS.Set", { key: MQTT_KVS_KEY, value: sig + "#" + JSON.stringify(attempt) }, null, null);
-  Shelly.call("Mqtt.SetConfig", { config: {
+  let c = {
     enable: true,
     server: mqttServer(),
     user: CFG.MQTT_USER ? CFG.MQTT_USER : null,
     pass: CFG.MQTT_PASS ? CFG.MQTT_PASS : null,
     topic_prefix: CFG.MQTT_PREFIX
-  } }, mqttEnsureCb3, null);
+  };
+  // TLS and RPC keys only when set here or undoing what this script set
+  // before (signature) -> with the defaults the object is exactly the one of
+  // version 20261011-1 and web UI TLS/RPC settings are left alone
+  let prevRpc = !sigTail(prevSig, "|norpc");
+  let prevTls = sigTail(prevRpc ? prevSig : prevSig.substr(0, prevSig.length - 6), "|tls");
+  if (CFG.MQTT_TLS) { c.ssl_ca = "ca.pem"; }
+  else if (prevTls && mqttCurCfg.ssl_ca === "ca.pem") { c.ssl_ca = null; }
+  if (!CFG.MQTT_RPC) {
+    c.enable_rpc = false; c.rpc_ntf = false; c.enable_control = false; c.status_ntf = false;
+  } else if (!prevRpc && mqttCurCfg.enable_rpc === false) {
+    c.enable_rpc = true; c.rpc_ntf = true; c.enable_control = true;
+  }
+  Shelly.call("Mqtt.SetConfig", { config: c }, mqttEnsureCb3, null);
 }
 
 function mqttEnsureCb3(res, err, msg, ud) {
@@ -727,7 +987,7 @@ function haDiscoveryJson() {
     swing_mode_state_topic: st,
     swing_mode_state_template: "{{ value_json.vane | lower }}",
     action_topic: st,
-    action_template: "{% if value_json.power == 'OFF' %}off{% elif not value_json.operating %}idle{% else %}{{ {'HEAT':'heating','COOL':'cooling','DRY':'drying','FAN':'fan','AUTO':'idle'}.get(value_json.mode,'idle') }}{% endif %}"
+    action_template: "{% if value_json.power == 'OFF' %}off{% elif value_json.defrost and value_json.mode in ['HEAT','AUTO'] %}defrosting{% elif not value_json.operating %}idle{% else %}{{ {'HEAT':'heating','COOL':'cooling','DRY':'drying','FAN':'fan','AUTO':'idle'}.get(value_json.mode,'idle') }}{% endif %}"
   };
   // Availability from the device's own LWT topic (<mqtt.topic_prefix>/online)
   try {
@@ -761,7 +1021,7 @@ function haStatusCb(topic, msg) {
 
 function haDiscoveryInit() {
   if (!CFG.MQTT_ENABLE || !CFG.HA_DISCOVERY || typeof MQTT === "undefined") { return; }
-  MQTT.subscribe(CFG.HA_DISC_PREFIX + "/status", haStatusCb, null);
+  mqttSub(CFG.HA_DISC_PREFIX + "/status", haStatusCb);
   Timer.set(10000, true, function () {
     if (!haDiscPublished) { haDiscoveryPublish(); }
   }, null);
@@ -931,6 +1191,117 @@ function vcSync() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  REMOTE TEMPERATURE FROM A BTHOME SENSOR
+//  Primary: status handler on bthomesensor:<id> (fires when the value
+//  changes). Backup: the same check at boot and every 20 s, which also
+//  catches readings whose value did not change.
+//  No sensor, a stale one or a removed one -> the pump's own sensor.
+//  "auto" without a sensor searches again every minute, so a sensor paired
+//  later is picked up without restarting the script.
+//  Pill fw 2.0.1 reports the timestamp as last_updated_ts.
+// ═══════════════════════════════════════════════════════════════════
+let bthomeId = -1;          // resolved bthomesensor id, -1 = none
+let bthomeKey = "";
+let bthomeLastTs = -1;      // last_updated_ts of the last handled reading
+let bthomeScanN = 0;        // 20 s ticks since the last search
+
+// List the BTHome temperature sensors (obj_id 69 = 0.1 C, 2 = 0.01 C) and
+// resolve CFG.REMOTE_TEMP_BTHOME_ID. Synchronous, ids 200..299.
+function bthomeFind(verbose) {
+  let first = -1, n = 0;
+  for (let id = 200; id < 300; id++) {
+    let c = null;
+    try { c = Shelly.getComponentConfig("bthomesensor", id); } catch (e) { c = null; }
+    if (c && (c.obj_id === 69 || c.obj_id === 2)) {
+      if (verbose) {
+        let s = Shelly.getComponentStatus("bthomesensor", id);
+        print("[cn105] BTHome temperature sensor: id=" + JSON.stringify(id) + " addr=" + c.addr +
+              (c.name ? " name=" + c.name : "") + " value=" + JSON.stringify(s ? s.value : null));
+      }
+      if (first < 0) { first = id; }
+      n++;
+    }
+  }
+  if (CFG.REMOTE_TEMP_BTHOME_ID !== "auto") { return CFG.REMOTE_TEMP_BTHOME_ID * 1; }
+  if (n === 1) { return first; }
+  if (verbose) {
+    print("[cn105] BTHome remote temp: " + (n === 0 ? "no temperature sensor paired" :
+          "several sensors -> set CFG.REMOTE_TEMP_BTHOME_ID to one of the ids above") +
+          " -> pump's own sensor, searching again every minute");
+  }
+  return -1;
+}
+
+function bthomeUse(id) {
+  if (id < 0) { return; }
+  bthomeId = id;
+  bthomeKey = "bthomesensor:" + JSON.stringify(id);
+  bthomeLastTs = -1;
+  let st = Shelly.getComponentStatus("bthomesensor", id);
+  if (st) {
+    print("[cn105] BTHome remote temp: id=" + JSON.stringify(id) +
+          ", value=" + JSON.stringify(st.value) + ", age=" + JSON.stringify(bthomeAge(st)) + "s");
+  } else {
+    print("[cn105] BTHome remote temp: " + bthomeKey + " not found -> pump's own sensor");
+  }
+  bthomeCheck(false);
+}
+
+function bthomeAge(st) {
+  let ts = (st.last_updated_ts !== undefined) ? st.last_updated_ts : st.last_update_ts;
+  let sys = Shelly.getComponentStatus("sys");
+  if (ts === undefined || ts === null || !sys || !sys.unixtime) { return -1; }
+  return Math.max(0, Math.round(sys.unixtime - ts));
+}
+
+function bthomeCheck(fresh) {
+  let st = Shelly.getComponentStatus("bthomesensor", bthomeId);
+  if (!st) { return; }
+  let ts = (st.last_updated_ts !== undefined) ? st.last_updated_ts : st.last_update_ts;
+  if (ts === undefined || ts === null || ts === bthomeLastTs) { return; }
+  let age = bthomeAge(st);
+  if (age < 0 && fresh) { age = 0; }           // no clock yet, but the event is new
+  if (age < 0) { return; }                     // no clock yet -> try again later
+  bthomeLastTs = ts;
+  if (age > CFG.REMOTE_TEMP_BTHOME_MAX_AGE_S) {
+    print("[cn105] BTHome reading is " + JSON.stringify(age) + " s old -> ignored");
+    return;
+  }
+  setRemoteTemp(st.value * 1, "bthome", age);
+}
+
+function bthomeStatusCb(st, ud) {
+  if (st && st.component === bthomeKey && st.delta) { bthomeCheck(true); }
+}
+
+function bthomeTick(ud) {
+  if (bthomeId >= 0 && Shelly.getComponentConfig("bthomesensor", bthomeId) === null) {
+    // sensor unpaired -> back to the pump's own sensor right away
+    if (remoteTemp > 0 && remoteTempSource === "bthome") {
+      print("[cn105] BTHome sensor " + bthomeKey + " removed -> pump's own sensor");
+      remoteTemp = 0;
+      remoteTempPending = true;
+    }
+    if (CFG.REMOTE_TEMP_BTHOME_ID === "auto") { bthomeId = -1; bthomeKey = ""; }
+  }
+  if (bthomeId >= 0) { bthomeCheck(false); return; }
+  if (CFG.REMOTE_TEMP_BTHOME_ID === "auto" && ++bthomeScanN >= 3) {
+    bthomeScanN = 0;
+    bthomeUse(bthomeFind(false));
+  }
+}
+
+function bthomeInit() {
+  if (CFG.REMOTE_TEMP_BTHOME_ID === -1) { return; }
+  bthomeUse(bthomeFind(true));
+  // No valid external reading -> tell the pump to use its own sensor, so a
+  // remote value sent before a script restart does not linger.
+  if (remoteTemp <= 0) { remoteTempPending = true; }
+  Shelly.addStatusHandler(bthomeStatusCb, null);
+  Timer.set(20000, true, bthomeTick, null);
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  STARTUP
 // ═══════════════════════════════════════════════════════════════════
 function startUart() {
@@ -978,6 +1349,9 @@ function startUart() {
       let h = "";
       for (let j = 0; j < data.length; j++) { h += hex(B(data, j)) + " "; }
       print("[cn105] raw RX (" + JSON.stringify(data.length) + "): " + h);
+      // raw chunks only while there is no link (wiring/parity diagnosis);
+      // with a link the R lines carry the same bytes
+      if (!cur.connected) { dbgLine("X", h); }
     }
     for (let i = 0; i < data.length; i++) {
       if (rxBuf.length > 256) { rxBuf = []; break; }
@@ -999,12 +1373,15 @@ function startUart() {
   }
 
   if (CFG.MQTT_ENABLE && typeof MQTT !== "undefined") {
-    MQTT.subscribe(CFG.MQTT_PREFIX + "/set", function (topic, msg) {
+    mqttSub(CFG.MQTT_PREFIX + "/set", function (topic, msg) {
       try { applyCommand(JSON.parse(msg)); } catch (e6) { print("[cn105] MQTT parse fail"); }
-    }, null);
+    });
   }
 
-  Timer.set(CFG.TICK_MS, true, function () { tick(); }, null);
+  startMs = upMs();
+  linkPubAt = startMs;      // first link-down state only after CYCLE_MS
+  if (CFG.DEBUG) { setDebug(true); }
+  Timer.set(CFG.TICK_MS, true, function () { tick(); auxTick(); }, null);
   sendConnect();
 }
 
@@ -1041,6 +1418,7 @@ let bootTries = 0;
 // up -> never more than a couple of RPCs in flight at boot.
 function startAux() {
   startDiag();
+  bthomeInit();             // synchronous: no Shelly.call in flight
   Timer.set(1500, false, function () { ensureVcs(); haDiscoveryInit(); }, null);
 }
 

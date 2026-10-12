@@ -72,8 +72,9 @@ mqtt:
       swing_mode_state_topic: "mitsuac/state"
       swing_mode_state_template: "{{ value_json.vane | lower }}"
       action_topic: "mitsuac/state"
+      # "defrosting" while the outdoor unit defrosts in HEAT/AUTO (0x09 sub mode)
       action_template: >-
-        {% if value_json.power == 'OFF' %}off{% elif not value_json.operating %}idle{% else %}{{ {'HEAT':'heating','COOL':'cooling','DRY':'drying','FAN':'fan','AUTO':'idle'}.get(value_json.mode,'idle') }}{% endif %}
+        {% if value_json.power == 'OFF' %}off{% elif value_json.defrost and value_json.mode in ['HEAT','AUTO'] %}defrosting{% elif not value_json.operating %}idle{% else %}{{ {'HEAT':'heating','COOL':'cooling','DRY':'drying','FAN':'fan','AUTO':'idle'}.get(value_json.mode,'idle') }}{% endif %}
 
   # ── Sensors ────────────────────────────────────────────────────────────────
   sensor:
@@ -205,6 +206,52 @@ mqtt:
       payload_available: "true"
       payload_not_available: "false"
 
+    # 0x09 sub mode: NORMAL, WARMUP, DEFROST, PREHEAT, STANDBY, OFF.
+    # "unavailable" on units that do not answer 0x09.
+    - name: "Sub mode"
+      unique_id: mitsuac_sub_mode
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ value_json.sub_mode }}"
+      icon: mdi:state-machine
+      entity_category: diagnostic
+      availability_mode: all
+      availability:
+        - topic: "mitsuac/online"
+          payload_available: "true"
+          payload_not_available: "false"
+        - topic: "mitsuac/state"
+          value_template: "{{ 'online' if value_json.sub_mode is not none else 'offline' }}"
+
+    # 0x09 stage: IDLE, LOW, GENTLE, MEDIUM, MODERATE, HIGH, DIFFUSE
+    - name: "Stage"
+      unique_id: mitsuac_stage
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ value_json.stage }}"
+      icon: mdi:speedometer
+      entity_category: diagnostic
+      availability_mode: all
+      availability:
+        - topic: "mitsuac/online"
+          payload_available: "true"
+          payload_not_available: "false"
+        - topic: "mitsuac/state"
+          value_template: "{{ 'online' if value_json.stage is not none else 'offline' }}"
+
+    # Where the room temperature the pump regulates on comes from:
+    # bthome (sensor paired to the Pill), manual (remote_temp command) or internal
+    - name: "Remote temperature source"
+      unique_id: mitsuac_remote_temperature_source
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ value_json.remote_temp_source }}"
+      icon: mdi:thermometer-check
+      entity_category: diagnostic
+      availability_topic: "mitsuac/online"
+      payload_available: "true"
+      payload_not_available: "false"
+
   # ── Binary sensors ─────────────────────────────────────────────────────────
   binary_sensor:
     - name: "Power"
@@ -230,6 +277,24 @@ mqtt:
       availability_topic: "mitsuac/online"
       payload_available: "true"
       payload_not_available: "false"
+
+    # Outdoor unit defrosting (0x09 sub mode DEFROST); "unavailable" on units
+    # that do not answer 0x09
+    - name: "Defrost"
+      unique_id: mitsuac_defrost
+      device: *mitsuac_device
+      state_topic: "mitsuac/state"
+      value_template: "{{ 'ON' if value_json.defrost else 'OFF' }}"
+      payload_on: "ON"
+      payload_off: "OFF"
+      icon: mdi:snowflake-melt
+      availability_mode: all
+      availability:
+        - topic: "mitsuac/online"
+          payload_available: "true"
+          payload_not_available: "false"
+        - topic: "mitsuac/state"
+          value_template: "{{ 'online' if value_json.defrost is not none else 'offline' }}"
 
     # CN105 link between the Pill and the indoor unit
     - name: "Heat pump connected"
@@ -278,6 +343,8 @@ mqtt:
     # Feed an external room temperature to the pump (0 = use its own sensor).
     # The script re-sends it every 20 s and falls back to the internal sensor
     # if it has not been refreshed for 30 min — write it from an automation.
+    # Not needed with a BLU sensor paired to the Pill (REMOTE_TEMP_BTHOME_ID):
+    # the next sensor reading overrides a value written here.
     - name: "Remote temperature"
       unique_id: mitsuac_remote_temperature
       device: *mitsuac_device

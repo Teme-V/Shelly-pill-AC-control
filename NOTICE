@@ -1,0 +1,19 @@
+Shelly Pill heat pump and air conditioner control
+https://github.com/Teme-V/Shelly-pill-AC-control
+Copyright 2026 The Shelly-pill-AC-control authors
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Mitsubishi Electric CN105 (mitsubishi/cn105/)
+---------------------------------------------
+The script uses CN105 protocol information (frame layout, byte positions,
+constants and temperature encodings) published by the projects below. Their
+source code is not included in this repository.
+
+  * SwiCago/HeatPump - original reverse engineering of the CN105 protocol
+    https://github.com/SwiCago/HeatPump
+    Repository license GPL-3.0; source file headers LGPL-2.1-or-later.
+
+  * echavet/MitsubishiCN105ESPHome - ESPHome implementation of the protocol
+    https://github.com/echavet/MitsubishiCN105ESPHome
+    No license file in the repository.
