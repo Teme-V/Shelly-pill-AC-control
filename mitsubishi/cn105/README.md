@@ -39,9 +39,9 @@ CN105 is a 5-pin JST-PA connector on the indoor unit's control board:
 
 | CN105 pin | Signal | Note |
 |---|---|---|
-| 1 | 12 V | Power only — use a 12 V → 5 V buck converter to feed the Pill's USB-C. **Never** connect to a signal line. |
+| 1 | 12 V | Not used — leave unconnected. **Never** connect to a signal line or to the Pill. |
 | 2 | GND | Common ground |
-| 3 | 5 V | Reference for the level shifter's high side |
+| 3 | 5 V | Powers the Pill and the level shifter's high side. |
 | 4 | TX (unit → Pill) | 5 V logic |
 | 5 | RX (Pill → unit) | 5 V logic |
 
@@ -50,6 +50,7 @@ The Pill uses **3.3 V logic**, so a bidirectional level shifter is required
 
 ```
 CN105 pin3 5V  -> shifter HV        (leave the shifter's LV/3V3 pin unconnected if it has its own LDO)
+CN105 pin3 5V  -> Pill 5 V supply   (same wire feeds shifter HV)
 CN105 pin2 GND -> shifter GND (both sides) -> Pill GND
 CN105 pin4 TX  -> shifter HV1 ... LV1 -> Pill IO2  (Pill RX)
 CN105 pin5 RX  <- shifter HV2 ... LV2 <- Pill IO1  (Pill TX)

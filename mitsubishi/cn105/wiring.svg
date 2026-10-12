@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Source of wiring.png (CN105 -> MH level shifter with own LDO -> Shelly Pill), drawn from README section 1.
+     No buck converter: CN105 pin 3 (5 V) powers both the shifter's high side and the Pill; pin 1 (12 V) is not connected.
      Render at 1600 x 1010 px, device scale factor 1, e.g. a headless Chrome screenshot of this file. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1010" viewBox="0 0 1600 1010"
      font-family="Arial, Helvetica, sans-serif">
@@ -26,7 +27,7 @@
   <rect class="box" x="40" y="190" width="340" height="430" rx="14" fill="#f4f4f4"/>
   <text class="t" x="210" y="214">CN105 (indoor unit)</text>
   <text class="sub" x="210" y="242">JST PA 2.0 mm, PAP-05V-S</text>
-  <text class="lbl" x="60" y="290">1</text><text class="lbl" x="88" y="290">12 V (power only)</text>
+  <text class="lbl" x="60" y="290">1</text><text class="lbl" x="88" y="290">12 V — NC</text>
   <text class="lbl" x="60" y="360">2</text><text class="lbl" x="88" y="360">GND</text>
   <text class="lbl" x="60" y="430">3</text><text class="lbl" x="88" y="430">5 V</text>
   <text class="lbl" x="60" y="500">4</text><text class="lbl" x="88" y="500">TX from AC</text>
@@ -37,18 +38,10 @@
   <rect class="pin" x="345" y="485" width="30" height="30" fill="#2ca02c"/>
   <rect class="pin" x="345" y="555" width="30" height="30" fill="#1f77b4"/>
 
-  <!-- Buck converter -->
-  <rect class="box" x="600" y="70" width="320" height="130" rx="14" fill="#fff7e6"/>
-  <text class="t" x="760" y="94">12 V -&gt; 5 V buck converter</text>
-  <text class="sub" x="760" y="120">power for the Pill only</text>
-  <text class="lbl" x="615" y="150">IN+ 12 V</text>
-  <text class="lbl" x="615" y="180">GND</text>
-  <text class="lbl end" x="905" y="150">OUT 5 V</text>
-
   <!-- Level shifter -->
-  <rect class="box" x="600" y="250" width="320" height="370" rx="14" fill="#eef4fc"/>
-  <text class="t" x="760" y="274">MH level shifter</text>
-  <text class="sub" x="760" y="302">with own 662K / XC6206 LDO</text>
+  <rect class="box" x="600" y="190" width="320" height="430" rx="14" fill="#eef4fc"/>
+  <text class="t" x="760" y="214">MH level shifter</text>
+  <text class="sub" x="760" y="242">with own 662K / XC6206 LDO</text>
   <text class="lbl" x="615" y="360">GND</text>
   <text class="lbl end" x="905" y="360">GND</text>
   <text class="lbl" x="615" y="430">HV / 5V</text>
@@ -57,7 +50,8 @@
   <text class="lbl end" x="905" y="500">LV1</text>
   <text class="lbl" x="615" y="570">HV2</text>
   <text class="lbl end" x="905" y="570">LV2</text>
-  <text class="sub" x="760" y="465">LV (3V3) side from its own LDO</text>
+  <text class="sub" x="760" y="290">LDO makes the 3V3 (LV) side</text>
+  <text class="sub" x="760" y="312">from HV 5 V</text>
 
   <!-- Shelly Pill -->
   <rect class="box" x="1180" y="190" width="360" height="430" rx="14" fill="#eef8ee"/>
@@ -67,27 +61,27 @@
   <rect class="pin" x="1180" y="345" width="30" height="30" fill="#cccccc"/>
   <rect class="pin" x="1180" y="485" width="30" height="30" fill="#cccccc"/>
   <rect class="pin" x="1180" y="555" width="30" height="30" fill="#cccccc"/>
-  <text class="lbl" x="1225" y="290">USB-C (5 V supply in)</text>
+  <text class="lbl" x="1225" y="290">5 V supply in</text>
   <text class="lbl" x="1225" y="360">GND</text>
   <text class="sub" x="1360" y="430">IO3 not used (reserved)</text>
   <text class="lbl" x="1225" y="500">IO2 = RX</text>
   <text class="lbl" x="1225" y="570">IO1 = TX</text>
 
   <!-- ===== Wires ===== -->
-  <!-- 12 V: CN105 pin 1 -> buck IN+ -->
-  <polyline class="w" stroke="#ff7f0e" points="375,290 470,290 470,150 600,150"/>
-  <text class="wire" x="535" y="132" fill="#ff7f0e">12 V</text>
-  <!-- 5 V: buck OUT -> Pill USB-C -->
-  <polyline class="w" stroke="#d62728" points="920,150 1120,150 1120,290 1180,290"/>
-  <text class="wire" x="1020" y="132" fill="#d62728">5 V via USB-C cable</text>
-  <!-- GND: CN105 pin 2 -> shifter GND -> Pill GND, tap to buck GND -->
+  <!-- 12 V: CN105 pin 1 not connected -->
+  <polyline class="w" stroke="#ff7f0e" points="375,290 425,290"/>
+  <line x1="413" y1="278" x2="437" y2="302" stroke="#ff7f0e" stroke-width="4"/>
+  <line x1="413" y1="302" x2="437" y2="278" stroke="#ff7f0e" stroke-width="4"/>
+  <text class="wire" x="447" y="290" fill="#ff7f0e" style="text-anchor: start">not connected</text>
+  <!-- GND: CN105 pin 2 -> shifter GND -> Pill GND -->
   <polyline class="w" stroke="#222222" points="375,360 600,360"/>
   <polyline class="w" stroke="#222222" points="920,360 1180,360"/>
-  <polyline class="w" stroke="#222222" points="520,360 520,180 600,180"/>
-  <circle cx="520" cy="360" r="7" fill="#222222"/>
   <text class="wire" x="1050" y="385" fill="#222222">all GNDs common</text>
-  <!-- 5 V: CN105 pin 3 -> shifter HV -->
+  <!-- 5 V: CN105 pin 3 -> shifter HV, and the same wire on to the Pill 5 V supply (hops over GND) -->
   <polyline class="w" stroke="#d62728" points="375,430 600,430"/>
+  <path class="w" stroke="#d62728" d="M570,430 L570,372 A12,12 0 0 0 570,348 L570,150 L1120,150 L1120,290 L1180,290"/>
+  <circle cx="570" cy="430" r="7" fill="#d62728"/>
+  <text class="wire" x="845" y="132" fill="#d62728">+5 V from CN105 pin 3 also powers the Pill</text>
   <!-- TX from AC: pin 4 -> HV1 ... LV1 -> IO2 (RX) -->
   <polyline class="w" stroke="#2ca02c" points="375,500 600,500"/>
   <polyline class="w" stroke="#2ca02c" points="920,500 1180,500"/>
@@ -100,7 +94,7 @@
   <polygon fill="#1f77b4" points="1062,558 1038,570 1062,582"/>
 
   <!-- ===== Notes ===== -->
-  <text class="note" x="40" y="670">- CN105 pin 1 (12 V) is for power only: through the buck converter to the Pill's USB-C. Never connect it to a signal line or to the shifter.</text>
+  <text class="note" x="40" y="670">- The Pill and the shifter both run from CN105 pin 3 (5 V), no buck converter. Pin 1 (12 V) stays unconnected: never to a signal line, the shifter or the Pill.</text>
   <text class="note" x="40" y="698">- The Pill has no 3.3 V output on its terminals, so the shifter needs its own LDO (662K / XC6206); leave its LV / 3V3 pin unconnected.</text>
   <text class="note" x="40" y="726">- Without that LDO the Pill reads the unit but its commands never arrive ("reads but does not write").</text>
   <text class="note" x="40" y="754">- Firmware 2.0.1: IO1 = TX, IO2 = RX, IO3 reserved. The script sets the port to 2400 8E1 (even parity) on every start.</text>
