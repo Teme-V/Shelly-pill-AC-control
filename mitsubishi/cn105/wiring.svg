@@ -32,11 +32,11 @@
   <text class="lbl" x="60" y="430">3</text><text class="lbl" x="88" y="430">5 V</text>
   <text class="lbl" x="60" y="500">4</text><text class="lbl" x="88" y="500">TX from AC</text>
   <text class="lbl" x="60" y="570">5</text><text class="lbl" x="88" y="570">RX to AC</text>
-  <rect class="pin" x="345" y="275" width="30" height="30" fill="#ff7f0e"/>
+  <rect class="pin" x="345" y="275" width="30" height="30" fill="#1f77b4"/>
   <rect class="pin" x="345" y="345" width="30" height="30" fill="#222222"/>
   <rect class="pin" x="345" y="415" width="30" height="30" fill="#d62728"/>
   <rect class="pin" x="345" y="485" width="30" height="30" fill="#2ca02c"/>
-  <rect class="pin" x="345" y="555" width="30" height="30" fill="#1f77b4"/>
+  <rect class="pin" x="345" y="555" width="30" height="30" fill="#f2c200"/>
 
   <!-- Level shifter -->
   <rect class="box" x="600" y="190" width="320" height="430" rx="14" fill="#eef4fc"/>
@@ -69,10 +69,10 @@
 
   <!-- ===== Wires ===== -->
   <!-- 12 V: CN105 pin 1 not connected -->
-  <polyline class="w" stroke="#ff7f0e" points="375,290 425,290"/>
-  <line x1="413" y1="278" x2="437" y2="302" stroke="#ff7f0e" stroke-width="4"/>
-  <line x1="413" y1="302" x2="437" y2="278" stroke="#ff7f0e" stroke-width="4"/>
-  <text class="wire" x="447" y="290" fill="#ff7f0e" style="text-anchor: start">not connected</text>
+  <polyline class="w" stroke="#1f77b4" points="375,290 425,290"/>
+  <line x1="413" y1="278" x2="437" y2="302" stroke="#1f77b4" stroke-width="4"/>
+  <line x1="413" y1="302" x2="437" y2="278" stroke="#1f77b4" stroke-width="4"/>
+  <text class="wire" x="447" y="290" fill="#1f77b4" style="text-anchor: start">not connected</text>
   <!-- GND: CN105 pin 2 -> shifter GND -> Pill GND -->
   <polyline class="w" stroke="#222222" points="375,360 600,360"/>
   <polyline class="w" stroke="#222222" points="920,360 1180,360"/>
@@ -88,10 +88,10 @@
   <polygon fill="#2ca02c" points="518,488 542,500 518,512"/>
   <polygon fill="#2ca02c" points="1038,488 1062,500 1038,512"/>
   <!-- RX to AC: IO1 (TX) -> LV2 ... HV2 -> pin 5 -->
-  <polyline class="w" stroke="#1f77b4" points="375,570 600,570"/>
-  <polyline class="w" stroke="#1f77b4" points="920,570 1180,570"/>
-  <polygon fill="#1f77b4" points="542,558 518,570 542,582"/>
-  <polygon fill="#1f77b4" points="1062,558 1038,570 1062,582"/>
+  <polyline class="w" stroke="#f2c200" points="375,570 600,570"/>
+  <polyline class="w" stroke="#f2c200" points="920,570 1180,570"/>
+  <polygon fill="#f2c200" points="542,558 518,570 542,582"/>
+  <polygon fill="#f2c200" points="1062,558 1038,570 1062,582"/>
 
   <!-- ===== Notes ===== -->
   <text class="note" x="40" y="670">- The Pill and the shifter both run from CN105 pin 3 (5 V), no buck converter. Pin 1 (12 V) stays unconnected: never to a signal line, the shifter or the Pill.</text>
@@ -115,11 +115,11 @@
     <text x="900" y="924" font-weight="bold" fill="#222222">4</text>
     <text x="1100" y="924" font-weight="bold" fill="#222222">5</text>
     <text x="165" y="950" font-weight="bold" fill="#222222">CN105</text>
-    <text x="300" y="950" fill="#ff7f0e">12 V</text>
+    <text x="300" y="950" fill="#1f77b4">12 V</text>
     <text x="500" y="950" fill="#222222">GND</text>
     <text x="700" y="950" fill="#d62728">5 V</text>
     <text x="900" y="950" fill="#2ca02c">TX from AC</text>
-    <text x="1100" y="950" fill="#1f77b4">RX to AC</text>
+    <text x="1100" y="950" fill="#b38f00">RX to AC</text>
     <text x="165" y="974" font-weight="bold" fill="#888888">CN-CNT</text>
     <text x="300" y="974" fill="#888888">+5 V</text>
     <text x="500" y="974" fill="#888888">RX to AC</text>
