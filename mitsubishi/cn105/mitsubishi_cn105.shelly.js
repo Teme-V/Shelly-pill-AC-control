@@ -98,7 +98,7 @@
  *   - no setTimeout -> Timer.set()
  *   - no forEach/map/filter -> for loops
  * 
- * version 20261020-1
+ * version 20261020-2
  */
 
 // ===================================================================
@@ -1077,10 +1077,25 @@ function vcEnsureCb(res, err, msg, ud) {
   if (err === 0) {
     // exists -> refresh the config (e.g. option lists stay up to date);
     // advance only in the callback -> one RPC in flight at a time
-    Shelly.call(d.ns + ".SetConfig", { id: d.id, config: d.cfg }, vcAdvanceCb, null);
+    Shelly.call(d.ns + ".SetConfig", { id: d.id, config: vcCfgFor(d, res) }, vcAdvanceCb, null);
     return;
   }
   Shelly.call("Virtual.Add", { type: d.type, id: d.id, config: d.cfg }, vcAddCb, null);
+}
+
+// SetConfig replaces meta as a whole (live 20.10.2026), so start from the
+// device's own meta: option titles, images and icons set in the Shelly app or
+// cloud are kept, only a missing view (and unit/step) is filled in.
+function vcCfgFor(d, res) {
+  let c = d.cfg;
+  let old = (res && res.meta) ? res.meta : null;
+  if (!c.meta || !old) { return c; }
+  if (!old.ui) { old.ui = {}; }
+  if (!old.ui.view) { old.ui.view = c.meta.ui.view; }
+  if (c.meta.ui.unit !== undefined && old.ui.unit === undefined) { old.ui.unit = c.meta.ui.unit; }
+  if (c.meta.ui.step !== undefined && old.ui.step === undefined) { old.ui.step = c.meta.ui.step; }
+  c.meta = old;
+  return c;
 }
 
 function vcAdvanceCb(res, err, msg, ud) {

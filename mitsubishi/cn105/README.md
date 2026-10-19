@@ -119,6 +119,27 @@ example shows `jsuart`. The script accepts both spellings.
    serial port was not already 2400 8E1. With the default `MQTT_ENABLE: false` the script
    does not touch MQTT at all.
 
+### Your own names in the Shelly app
+
+The Mode, Fan and Vane selections show the option values (`HEAT`, `QUIET`, `SWING`, ...). You can
+give the options your own names, for example in your language, and change a component's view or
+icon. The script keeps these settings: on every start it only fills in a view that is missing
+(since `20261020-2`; `20261019-1` and `20261020-1` reset them on every start).
+
+* **Shelly app or cloud:** edit the option titles in the virtual component's settings.
+* **RPC**, e.g. Mode (`enum:201`):
+
+  ```
+  curl -X POST http://<pill-ip>/rpc/Enum.SetConfig -d '{"id":201,"config":{"meta":{"ui":{"view":"dropdown",
+    "titles":{"HEAT":"Heating","DRY":"Dry","COOL":"Cooling","FAN":"Fan","AUTO":"Auto"}}}}}'
+  ```
+
+  `meta` is replaced as a whole, so include `"view"` too. Only the names shown in the app change;
+  MQTT, HTTP and Home Assistant keep using `HEAT`, `COOL`, ...
+
+Component ids: Power `boolean:200`, Mode `enum:201`, Fan `enum:202`, Vane `enum:203`,
+Wide vane `enum:204`, Target temperature `number:205`, Room temperature `number:207`, group `group:206`.
+
 ### Start-up order
 
 Firmware 2.0.1 stops a script that has more than five RPC calls in flight at once
@@ -435,6 +456,13 @@ minutes (default 1440, `0` = never).
   `0x09` three times in a row has it dropped from `POLL`.
 * Remote temperature `0x41 / 0x07`: `FC 41 01 30 10 07 01 <2t−16> <2t+128> 00 … chk`
   (21.5 °C → `… 07 01 1B AB … B0`); `… 07 00 00 80 … F7` returns to the unit's own sensor.
+
+## Changes in 20261020-2
+
+* Option titles, images and icons that you set for the virtual components in the Shelly app or
+  cloud are kept. `20261019-1` and `20261020-1` replaced them with the script's own view on every
+  start, because `SetConfig` replaces `meta` as a whole. See section 3, *Your own names in the
+  Shelly app*.
 
 ## Changes in 20261020-1
 
