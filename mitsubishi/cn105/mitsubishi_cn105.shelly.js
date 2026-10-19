@@ -98,7 +98,7 @@
  *   - no setTimeout -> Timer.set()
  *   - no forEach/map/filter -> for loops
  * 
- * version 20261013-1
+ * version 20261019-1
  */
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1035,12 +1035,14 @@ function haDiscoveryInit() {
 //  pump state -> components on every poll cycle.
 // ═══════════════════════════════════════════════════════════════════
 let VC_GROUP_ID = 206;
+// meta.ui.view: without it Power and the enums are hidden in the Shelly app
+// and cloud ("Hidden"); views as the cloud offers them (live 19.10.2026)
 let VC_DEFS = [
-  { ns: "Boolean", type: "boolean", id: 200, cfg: { name: "Power" } },
-  { ns: "Enum",    type: "enum",    id: 201, cfg: { name: "Mode",  options: MODE_M } },
-  { ns: "Enum",    type: "enum",    id: 202, cfg: { name: "Fan",   options: FAN_M } },
-  { ns: "Enum",    type: "enum",    id: 203, cfg: { name: "Vane",  options: VANE_M } },
-  { ns: "Enum",    type: "enum",    id: 204, cfg: { name: "WVane", options: WVANE_M } },
+  { ns: "Boolean", type: "boolean", id: 200, cfg: { name: "Power", meta: { ui: { view: "toggle" } } } },
+  { ns: "Enum",    type: "enum",    id: 201, cfg: { name: "Mode",  options: MODE_M,  meta: { ui: { view: "dropdown" } } } },
+  { ns: "Enum",    type: "enum",    id: 202, cfg: { name: "Fan",   options: FAN_M,   meta: { ui: { view: "dropdown" } } } },
+  { ns: "Enum",    type: "enum",    id: 203, cfg: { name: "Vane",  options: VANE_M,  meta: { ui: { view: "dropdown" } } } },
+  { ns: "Enum",    type: "enum",    id: 204, cfg: { name: "WVane", options: WVANE_M, meta: { ui: { view: "dropdown" } } } },
   { ns: "Number",  type: "number",  id: 205, cfg: { name: "Target temperature",
                      min: CFG.MIN_TEMP, max: CFG.MAX_TEMP,
                      // REQUIRED inside min..max: the implicit default 0 would be rejected at creation

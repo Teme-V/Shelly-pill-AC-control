@@ -436,6 +436,12 @@ minutes (default 1440, `0` = never).
 * Remote temperature `0x41 / 0x07`: `FC 41 01 30 10 07 01 <2t−16> <2t+128> 00 … chk`
   (21.5 °C → `… 07 01 1B AB … B0`); `… 07 00 00 80 … F7` returns to the unit's own sensor.
 
+## Changes in 20261019-1
+
+* The Power switch and the Mode, Fan, Vane and WVane selections now show in the Shelly app and
+  cloud (`meta.ui.view` toggle / dropdown). Earlier versions created them hidden. The script sets
+  the views again on every start, so existing components are fixed without deleting anything.
+
 ## Changes since 20260930-2
 
 Version `20261013-1`, tag `v1.1-mitsubishi-cn105`. No breaking changes: `<prefix>/state` only
