@@ -188,7 +188,7 @@ The first start with `MQTT_HOST` set looks like this:
 [cn105] Pill mode="js_uart" pin0="reserved" pin1="reserved" pin2="reserved"
 [cn105] Virtual components ready (group MitsubishiAC)
 [cn105] Applying MQTT broker 192.168.1.10:1883 user=mqtt prefix=mitsuac (attempt 1)
-[cn105] MQTT config applied — rebooting once to activate it
+[cn105] MQTT config applied - rebooting once to activate it
 ```
 
 After that reboot, and on every later start, the MQTT lines are gone.
@@ -435,6 +435,11 @@ minutes (default 1440, `0` = never).
   `0x09` three times in a row has it dropped from `POLL`.
 * Remote temperature `0x41 / 0x07`: `FC 41 01 30 10 07 01 <2t−16> <2t+128> 00 … chk`
   (21.5 °C → `… 07 01 1B AB … B0`); `… 07 00 00 80 … F7` returns to the unit's own sensor.
+
+## Changes in 20261020-1
+
+* The script's comments are plain ASCII, so the Shelly Cloud script editor no longer breaks
+  characters when it uploads the code. Log texts use `-` instead of `—`; nothing else changed.
 
 ## Changes in 20261019-1
 
