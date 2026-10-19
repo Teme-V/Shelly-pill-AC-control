@@ -123,8 +123,9 @@ example shows `jsuart`. The script accepts both spellings.
 
 The Mode, Fan and Vane selections show the option values (`HEAT`, `QUIET`, `SWING`, ...). You can
 give the options your own names, for example in your language, and change a component's view or
-icon. The script keeps these settings: on every start it only fills in a view that is missing
-(since `20261020-2`; `20261019-1` and `20261020-1` reset them on every start).
+icon. The script keeps these settings: on every start it only fills in a view that has never
+been set, and a component you hide in the app stays hidden (since `20261020-3`; `20261019-1` and
+`20261020-1` reset the settings on every start, `20261020-2` showed hidden components again).
 
 * **Shelly app or cloud:** edit the option titles in the virtual component's settings.
 * **RPC**, e.g. Mode (`enum:201`):
@@ -456,6 +457,11 @@ minutes (default 1440, `0` = never).
   `0x09` three times in a row has it dropped from `POLL`.
 * Remote temperature `0x41 / 0x07`: `FC 41 01 30 10 07 01 <2t−16> <2t+128> 00 … chk`
   (21.5 °C → `… 07 01 1B AB … B0`); `… 07 00 00 80 … F7` returns to the unit's own sensor.
+
+## Changes in 20261020-3
+
+* A virtual component you hide in the Shelly app or cloud stays hidden. `20261020-2` showed it
+  again on the next start; the script now only fills in a view that has never been set.
 
 ## Changes in 20261020-2
 

@@ -98,7 +98,7 @@
  *   - no setTimeout -> Timer.set()
  *   - no forEach/map/filter -> for loops
  * 
- * version 20261020-2
+ * version 20261020-3
  */
 
 // ===================================================================
@@ -1085,13 +1085,14 @@ function vcEnsureCb(res, err, msg, ud) {
 
 // SetConfig replaces meta as a whole (live 20.10.2026), so start from the
 // device's own meta: option titles, images and icons set in the Shelly app or
-// cloud are kept, only a missing view (and unit/step) is filled in.
+// cloud are kept, only a view that was never set (and unit/step) is filled in.
+// An empty view is "Hidden" chosen in the app and stays hidden.
 function vcCfgFor(d, res) {
   let c = d.cfg;
   let old = (res && res.meta) ? res.meta : null;
   if (!c.meta || !old) { return c; }
   if (!old.ui) { old.ui = {}; }
-  if (!old.ui.view) { old.ui.view = c.meta.ui.view; }
+  if (old.ui.view === undefined) { old.ui.view = c.meta.ui.view; }
   if (c.meta.ui.unit !== undefined && old.ui.unit === undefined) { old.ui.unit = c.meta.ui.unit; }
   if (c.meta.ui.step !== undefined && old.ui.step === undefined) { old.ui.step = c.meta.ui.step; }
   c.meta = old;
