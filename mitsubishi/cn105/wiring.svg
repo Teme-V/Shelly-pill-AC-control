@@ -122,8 +122,8 @@
     <text x="1100" y="950" fill="#1f77b4">RX to AC</text>
     <text x="165" y="974" font-weight="bold" fill="#888888">CN-CNT</text>
     <text x="300" y="974" fill="#888888">+5 V</text>
-    <text x="500" y="974" fill="#888888">TX from AC</text>
-    <text x="700" y="974" fill="#888888">RX to AC</text>
+    <text x="500" y="974" fill="#888888">RX to AC</text>
+    <text x="700" y="974" fill="#888888">TX from AC</text>
     <text x="900" y="974" fill="#888888">+12 V</text>
     <text x="1100" y="974" fill="#888888">GND</text>
   </g>
