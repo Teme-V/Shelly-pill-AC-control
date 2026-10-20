@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright 2026 The Shelly-pill-AC-control authors
+ * Copyright 2026 Teemu Virta
  * SPDX-License-Identifier: Apache-2.0
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy
@@ -17,7 +17,9 @@
  * BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.
  *
  * CN105 protocol information: SwiCago/HeatPump (original reverse engineering)
- * and echavet/MitsubishiCN105ESPHome; see NOTICE in the repository root.
+ * and echavet/MitsubishiCN105ESPHome. This script is an independent
+ * implementation and contains no code from those projects; see NOTICE in the
+ * repository root.
  */
 
 /**
@@ -27,8 +29,9 @@
  * (Web UI -> Scripts -> Add script) and enable "Run on startup".
  * See README.md for wiring, MQTT and Home Assistant.
  *
- * Ported from the ESPHome implementation echavet/MitsubishiCN105ESPHome
- * (original reverse engineering: SwiCago/HeatPump).
+ * Independent implementation for the Shelly scripting engine (Espruino).
+ * Protocol information from echavet/MitsubishiCN105ESPHome and
+ * SwiCago/HeatPump (original reverse engineering).
  *
  * Requirements before running:
  *   1) The Pill runs firmware 2.0.1 or later.
@@ -98,7 +101,7 @@
  *   - no setTimeout -> Timer.set()
  *   - no forEach/map/filter -> for loops
  * 
- * version 20261020-3
+ * version 20261020-4
  */
 
 // ===================================================================
@@ -213,7 +216,7 @@ let pollIdx = 0;
 let nextCycleAt = 0;
 let useTempEncB = false;      // detected from the 0x02 response
 let gotFirstSettings = false;
-let wideVaneAdj = false;
+let wvaneBit80 = false;       // WVane byte high nibble 0x80, echoed back in SET
 
 // Current device state
 let cur = {
@@ -445,7 +448,7 @@ function parseRx() {
   resync();
   while (rxBuf.length >= 5) {
     let dlen = rxBuf[4];
-    let total = dlen + 6;               // 5 header + data + 1 checksum
+    let total = dlen + 6;               // FC, type, 01, 30, len | payload | chk
     if (total > 64) {                   // absurd length -> drop the sync byte
       rxBuf.splice(0, 1);
       resync();
@@ -525,8 +528,8 @@ function decodeSettings(f) {
 
   cur.power = mapByte(POWER_B, POWER_M, d3, cur.power);
   cur.iSee = (d4 > 0x08);
-  let modeByte = cur.iSee ? (d4 - 0x08) : d4;
-  cur.mode = mapByte(MODE_B, MODE_M, modeByte, cur.mode);
+  let modeCode = cur.iSee ? (d4 - 0x08) : d4;
+  cur.mode = mapByte(MODE_B, MODE_M, modeCode, cur.mode);
 
   if (d11 !== 0x00) {
     cur.temp = (d11 - 128) / 2;
@@ -540,7 +543,7 @@ function decodeSettings(f) {
 
   if (d10 !== 0) {
     cur.wideVane = mapByte(WVANE_B, WVANE_M, d10 & 0x0F, cur.wideVane);
-    wideVaneAdj = ((d10 & 0xF0) === 0x80);
+    wvaneBit80 = ((d10 & 0xF0) === 0x80);
   }
   gotFirstSettings = true;
 }
@@ -632,7 +635,7 @@ function sendSet() {
   }
   if (want.wideVane !== null) {
     let i = idxOfStr(WVANE_M, want.wideVane);
-    if (i >= 0) { b[18] = WVANE_B[i] | (wideVaneAdj ? 0x80 : 0x00); c2 |= C2_WVANE; }
+    if (i >= 0) { b[18] = WVANE_B[i] | (wvaneBit80 ? 0x80 : 0x00); c2 |= C2_WVANE; }
   }
 
   if (c1 === 0 && c2 === 0) { clearWant(); return; }

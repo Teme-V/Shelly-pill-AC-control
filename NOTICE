@@ -1,14 +1,15 @@
 Shelly Pill heat pump and air conditioner control
 https://github.com/Teme-V/Shelly-pill-AC-control
-Copyright 2026 The Shelly-pill-AC-control authors
+Copyright 2026 Teemu Virta
 
 Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 Mitsubishi Electric CN105 (mitsubishi/cn105/)
 ---------------------------------------------
-The script uses CN105 protocol information (frame layout, byte positions,
-constants and temperature encodings) published by the projects below. Their
-source code is not included in this repository.
+Protocol knowledge (frame layout, byte positions, constants and temperature
+encodings) is based on the reverse-engineering work of the projects below.
+The script is an independent implementation for the Shelly scripting engine
+(Espruino) and does not contain code from those projects.
 
   * SwiCago/HeatPump - original reverse engineering of the CN105 protocol
     https://github.com/SwiCago/HeatPump

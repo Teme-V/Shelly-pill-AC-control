@@ -8,9 +8,10 @@ CN105 protocol and the Shelly app controls; MQTT and Home Assistant are optional
 **Requires The Pill firmware 2.0.1 or later** (the `js_uart` peripheral mode first
 appeared in 2.0.1).
 
-The protocol implementation is a port of
-[echavet/MitsubishiCN105ESPHome](https://github.com/echavet/MitsubishiCN105ESPHome)
-(reverse engineering by [SwiCago/HeatPump](https://github.com/SwiCago/HeatPump)).
+The script is an independent implementation for the Shelly scripting engine. The CN105
+protocol information comes from [echavet/MitsubishiCN105ESPHome](https://github.com/echavet/MitsubishiCN105ESPHome)
+and the original reverse engineering by [SwiCago/HeatPump](https://github.com/SwiCago/HeatPump); see
+*License and credits*.
 
 ## What is in the kit
 
@@ -458,6 +459,14 @@ minutes (default 1440, `0` = never).
 * Remote temperature `0x41 / 0x07`: `FC 41 01 30 10 07 01 <2t−16> <2t+128> 00 … chk`
   (21.5 °C → `… 07 01 1B AB … B0`); `… 07 00 00 80 … F7` returns to the unit's own sensor.
 
+## Changes in 20261020-4
+
+* Credits and license notes only: the script is described as an independent implementation that
+  uses protocol information from echavet/MitsubishiCN105ESPHome and SwiCago/HeatPump and contains
+  no code from them, and the copyright line names the author. Two internal variable names and one
+  comment were rewritten. The UART frames, MQTT messages and virtual components are the same as in
+  `20261020-3`.
+
 ## Changes in 20261020-3
 
 * A virtual component you hide in the Shelly app or cloud stays hidden. `20261020-2` showed it
@@ -504,12 +513,17 @@ Home Assistant `unique_id`s stay the same.
 
 ## License and credits
 
-Licensed under the [Apache License 2.0](../../LICENSE); see also [NOTICE](../../NOTICE).
+Licensed under the [Apache License 2.0](../../LICENSE), Copyright 2026 Teemu Virta; see also
+[NOTICE](../../NOTICE).
 
-The CN105 protocol information comes from [SwiCago/HeatPump](https://github.com/SwiCago/HeatPump)
-(original reverse engineering; repository license GPL-3.0, source headers LGPL-2.1-or-later) and
-[echavet/MitsubishiCN105ESPHome](https://github.com/echavet/MitsubishiCN105ESPHome) (no license file).
-No source code from those projects is included here.
+Protocol knowledge is based on the reverse-engineering work of
+[SwiCago/HeatPump](https://github.com/SwiCago/HeatPump) (GPL-3.0) and
+[echavet/MitsubishiCN105ESPHome](https://github.com/echavet/MitsubishiCN105ESPHome).
+This script is an independent implementation for the Shelly scripting engine (Espruino) and
+does not contain code from those projects.
+
+License status of those projects: SwiCago/HeatPump has a GPL-3.0 repository license and
+LGPL-2.1-or-later source file headers; echavet/MitsubishiCN105ESPHome has no license file.
 
 This kit is provided as-is; use at your own risk — you are connecting to the service port of a
 mains-powered appliance.

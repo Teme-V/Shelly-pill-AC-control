@@ -82,13 +82,14 @@ so links to it keep working.
 
 ## License and credits
 
-Licensed under the [Apache License 2.0](LICENSE). [NOTICE](NOTICE) lists the projects whose
-protocol work the scripts build on, with their license status.
+Licensed under the [Apache License 2.0](LICENSE), Copyright 2026 Teemu Virta. [NOTICE](NOTICE)
+lists the projects whose protocol work the scripts build on, with their license status.
 
-* Mitsubishi Electric CN105: protocol implementation ported from
-  [echavet/MitsubishiCN105ESPHome](https://github.com/echavet/MitsubishiCN105ESPHome),
-  original reverse engineering by [SwiCago/HeatPump](https://github.com/SwiCago/HeatPump).
-  No source code from those projects is included.
+* Mitsubishi Electric CN105: protocol knowledge is based on the reverse-engineering work of
+  [SwiCago/HeatPump](https://github.com/SwiCago/HeatPump) (GPL-3.0) and
+  [echavet/MitsubishiCN105ESPHome](https://github.com/echavet/MitsubishiCN105ESPHome).
+  The script is an independent implementation for the Shelly scripting engine (Espruino) and
+  does not contain code from those projects.
 
 The sources for other brands are credited in their folders when those are published.
 
