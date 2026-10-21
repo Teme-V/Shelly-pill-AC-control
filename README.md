@@ -14,7 +14,7 @@ installation guide.** This page only shows what exists and where to find it.
 | Brand | Port / connector | Script | Status | Folder |
 |---|---|---|---|---|
 | Mitsubishi Electric | CN105, 5-pin JST PA | `mitsubishi_cn105.shelly.js` | production | [`mitsubishi/cn105/`](mitsubishi/cn105/) |
-| Panasonic | CN-CNT, 5-pin JST PA (different pin order from CN105) | — | in development | — |
+| Panasonic | CN-CNT, 5-pin JST PA (different pin order from CN105) | `panasonic_cncnt.shelly.js` | in development | [`panasonic/cncnt/`](panasonic/cncnt/) |
 | Toshiba (Seiya, Suzumi, Shorai, Daiseikai) | CN22, 5-pin JST PA | — | analysed, not started | — |
 | Midea and rebrands (Qlima, Electrolux, Comfee, …) | Wi-Fi dongle port | — | analysed, not started | — |
 | Gree / Sinclair | Wi-Fi dongle port | — | analysed, not started | — |

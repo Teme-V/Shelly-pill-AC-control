@@ -19,6 +19,22 @@ The script is an independent implementation for the Shelly scripting engine
     https://github.com/echavet/MitsubishiCN105ESPHome
     No license file in the repository.
 
+Panasonic CN-CNT (panasonic/cncnt/)
+-----------------------------------
+Protocol knowledge (frame layout, byte positions, codes and the checksum) is
+based on the project below. The script is an independent implementation for
+the Shelly scripting engine (Espruino) and does not contain code from it.
+Connector part numbers and the pin order come from the HeishaMon documentation;
+pins 2 and 3 were verified on a real unit.
+
+  * DomiStyle/esphome-panasonic-ac - CZ-TACG1 / CN-CNT protocol (commit c56eb4f)
+    https://github.com/DomiStyle/esphome-panasonic-ac
+    License MIT.
+
+  * Egyras/HeishaMon - CN-CNT connector and pinout
+    https://github.com/Egyras/HeishaMon
+    No license file in the repository.
+
 Ouman EH-800B over USB (ouman/eh800b-usb/)
 ------------------------------------------
 USB shell commands, replies and the trend.log layout were observed on an
