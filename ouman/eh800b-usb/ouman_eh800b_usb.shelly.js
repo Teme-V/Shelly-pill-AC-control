@@ -56,7 +56,7 @@
  * MQTT  <prefix>/state (retained), /diag, /set, /prop/<id> (retained),
  *       /debug (TX/RX hex while DEBUG).
  *
- * version 20261021-14
+ * version 20261021-15
  */
 
 // ===================================================================
@@ -197,6 +197,12 @@ function qFin() {
   if (c) { c(r); }
 }
 function qTimeout(seq) { if (seq === qSeq && qcb) { qT = null; qFin(); } }
+// transaction step timers carry the link generation: fail() bumps it, so a
+// poll still pending from the broken transaction never interleaves with init
+// (interleaved commands hung the CH376S until a power cycle, 21.10.2026)
+let gen = 0, silent = 0;
+function gRun(u) { if (u[0] === gen) { u[1](); } }
+function gT(ms, fn) { Timer.set(ms, false, gRun, [gen, fn]); }
 function q(a, wait, cb, exp) {
   rx = ""; qcb = cb; qExp = exp ? exp : 0; qSeq++;
   snd(a);
@@ -235,8 +241,12 @@ function outRes(r) {
 //  START-UP: CH376S table, then cancel a left-over XModem upload
 // ===================================================================
 function fail(why) {
+  gen++; qSeq++;
+  if (qT !== null) { Timer.clear(qT); qT = null; }
+  qcb = null; rx = "";
   ready = false; busy = false; ST.link = false; ST.err = why; TR.on = false; XM.on = false; TRD.busy = false;
   print("[ouman] link down: " + why);
+  if (why === "no reply from the controller") { initTries = 5; }   // retry every 30 s
   pubState();
   vcSync();
   initTries++;
@@ -249,7 +259,7 @@ function initStep(r) {
     p = all[iK - 1].split("/");
     if (p.length > 2 && lastB(r) !== parseInt(p[2], 16)) { fail(p[3] + " " + hexs(r)); return; }
   }
-  if (iK >= all.length) { Timer.set(300, false, initDrain, null); return; }
+  if (iK >= all.length) { gT(300, initDrain); return; }
   p = all[iK].split("/");
   iK++;
   let a = [];
@@ -260,7 +270,7 @@ function initDrain() { drain(initCan); }
 // an upload cut off by a reboot later sends EOT (0x04) into the next reply:
 // cancel it (CAN x3) and end the line so the shell drops the bytes
 function initCan() { dbg("banner " + JSON.stringify(safeStr(txt))); outBytes([0x18, 0x18, 0x18, 0x0A], initWait); }
-function initWait() { Timer.set(300, false, initFlush, null); }
+function initWait() { gT(300, initFlush); }
 function initFlush() { drain(initDone); }
 function initDone() {
   if (txt.length) { dbg("flushed " + hexs(txt, 32)); }
@@ -290,7 +300,7 @@ function inRes(r) {
   let fast = CFG.BAUD >= 57600;
   if ((got && nak >= (TR.on ? 30 : (fast ? 6 : 4))) || nak >= (TR.on ? 60 : (fast ? 40 : 25))) { afterIn(); return; }
   // the shell answers ~1 s after a command: poll gently (CPU), XModem polls faster
-  Timer.set(fast ? 50 : 80, false, inPoll, null);
+  gT(fast ? 50 : 80, inPoll);
 }
 // a reply is complete as soon as its known shape is in; otherwise the NAK count ends it
 function complete() {
@@ -325,7 +335,7 @@ function pump() {
   TR.on = false;
   outStr(curCmd + "\n", cmdSent);
 }
-function cmdSent() { Timer.set(150, false, cmdRead, null); }
+function cmdSent() { gT(150, cmdRead); }
 function cmdRead() { drain(done); }
 
 // ===================================================================
@@ -335,6 +345,12 @@ function done() {
   let c = curCmd;
   if (TR.on) { TR.on = false; trendHeader(); return; }
   if (CFG.DEBUG) { dbg("R " + hexs(txt, 48)); }
+  // the controller's USB shell can go silent (seen after the cable was moved
+  // to a PC and back) while USB itself works: report the link as down
+  if (txt.length === 0) {
+    silent++;
+    if (silent >= 6) { silent = 0; fail("no reply from the controller"); return; }
+  } else { silent = 0; }
   // measurements: parse in place and free the reply before /diag is built
   if (c.indexOf("MEASUREMENTS") === 0) {
     let ok = false;
@@ -489,7 +505,7 @@ function trendHeader() {
   curCmd = "UPLOAD trend.log";
   outStr(curCmd + "\n", xmSent);
 }
-function xmSent() { Timer.set(300, false, xmRead, null); }
+function xmSent() { gT(300, xmRead); }
 function xmRead() { drain(xmStartRx); }
 function xmStartRx() {
   if (txt.indexOf("Start") < 0) { xmFail("no Start: " + JSON.stringify(safeStr(txt.slice(0, 40)))); return; }
@@ -511,7 +527,7 @@ function xmIn(r) {
   }
   // the controller sends a packet ~1.3 s after the ACK: a 15 ms poll only burns CPU
   // and starves the Pill HTTP server (measured 21.10.2026), 100 ms costs ~3 % in time
-  Timer.set(CFG.XM_POLL_MS, false, xmPoll, null);
+  gT(CFG.XM_POLL_MS, xmPoll);
 }
 // CRC-16/XMODEM, byte-wise (no 8-step bit loop: ~6x less interpreter work per packet)
 function crc16x(t, a, n) {
@@ -526,7 +542,7 @@ function crc16x(t, a, n) {
   return c;
 }
 function xmAck() {
-  if (CFG.XM_GAP_MS > 0) { Timer.set(CFG.XM_GAP_MS, false, xmPoll, null); } else { xmPoll(); }
+  if (CFG.XM_GAP_MS > 0) { gT(CFG.XM_GAP_MS, xmPoll); } else { xmPoll(); }
 }
 function xmData(r) {
   XM.buf += r.slice(1);
@@ -552,7 +568,7 @@ function xmData(r) {
   if (TRD.need > 0 && XM.pkts >= TRD.need) { outBytes([0x18, 0x18, 0x18, 0x0A], xmEnd); return; }
   outBytes([0x06], xmAck);
 }
-function xmEnd() { Timer.set(300, false, xmEnd2, null); }
+function xmEnd() { gT(300, xmEnd2); }
 function xmEnd2() { drain(xmDone); }
 function xmDone() {
   XM.on = false;

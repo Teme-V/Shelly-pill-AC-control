@@ -203,7 +203,9 @@ UART script only receives after a fresh boot. At most 6 reboots per day (KVS `ou
 | `link down: CH376 CHECK_EXIST` | No answer from the module: TX/RX swapped, wired to H2 RD/WR, wrong baud jumper vs `CFG.BAUD` |
 | `link down: no USB device` | EH-800B not attached or the module has no 5 V |
 | Link up but all replies empty | Another UART script ran first after boot: reboot the Pill |
-| Values stop, module does not answer after a wire came loose | Remove both 5 V and the USB cable from the module, then reboot the Pill |
+| `link down: no reply from the controller` (USB works, no banner, every read NAKed) | The controller's USB shell has stopped (seen once after the USB cable was moved to a PC and back). A power cycle with the USB cable attached does **not** help, because VBUS keeps the controller's USB side powered. Unplug the USB cable, switch the controller off for ≥ 10 s, switch it on, wait for the display, plug the USB cable back |
+| Link stays down after the USB cable was unplugged and plugged back (`CHECK_EXIST`, D1 off) | The CH376S hangs when the USB device disappears in the middle of a transfer. Reset the module: USB cable out (it back-feeds the module), module 5 V off for a few seconds, 5 V on, USB cable back. The script reconnects within 30 s; the Pill needs no reboot |
+| Values stop, module does not answer after a wire came loose | Same module reset as above |
 | `return` / `dhw` stay `null` | No measurement channel has type 283 / 237 (properties 6/7/8), or the trend has not been read yet (`trend_busy`, `trend.err`) |
 | Pill web UI slow every 30 min for ~2 min | A trend read is running; raise `TREND_MIN` if this matters |
 
@@ -218,12 +220,23 @@ UART script only receives after a fresh boot. At most 6 reboots per day (KVS `ou
   measurement objects do not (the GET help is printed instead).
 * `MEASUREMENTS <n>` (undocumented) returns row n+1 alone, n = 0–27 (the help says 0–16; n is 8-bit).
 * The controller does not wait for a slow host: an output larger than ~1 kB that it produces at
-  once is cut (`?` gives 947 bytes through the CH376S), and `TYPE` gives at most 200 bytes.
+  once is cut (`?` gives 947 of ~1 100 bytes through the CH376S), and `TYPE` gives at most 200 bytes.
+  On a PC both come out whole (`TYPE error.log` 360 bytes), so the limit is the bridge, not the firmware.
+* The full `?` list of V3.0.0 is the same as in V2.2.2 (… `SET CLOCK`, `SET DATE`, `SET DAY`, `FIRMWARE`,
+  `PTESTER`); `GET` / `SET PROPERTY` and `MEASUREMENTS <n>` are not listed.
 * `UPLOAD <file>` = XModem-CRC (128-byte blocks, 0x1A padding). Cancelling with CAN must be
   followed by a newline, or the CANs prefix the next shell command (`Unknown command`). An upload
   cut off by a reboot later sends EOT into the next reply; the script cancels and flushes at start.
 * The numbering is the same as in the EH-800 Ethernet interface (`S_<id>_85`); the Home Assistant
   `ouman_eh_800` integration uses that HTTP interface and does not apply to the EH-800B.
+
+## Changes in 20261021-15
+
+* Every transaction step timer carries a link generation; `fail()` cancels the pending reply and
+  timers. A poll left over from a broken transfer could reach the CH376S right after its reset,
+  before "no retry on NAK" was set again, and hang the module until a power cycle.
+* Six empty replies in a row → `link down: no reply from the controller`, retry every 30 s, so
+  Home Assistant shows the entities as unavailable instead of stale values.
 
 ## Changes in 20261021-14 (first repository version)
 
