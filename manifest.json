@@ -12,5 +12,19 @@
     "description": "Reads and controls a Panasonic air-to-air indoor unit through the CN-CNT port, where the CZ-TACG1 adapter plugs in (UART 9600 8E1, level shifter with its own 3.3 V LDO): virtual device in the Shelly app with power consumption, HTTP endpoint, optional MQTT. Starts read-only. In development, tested on one unit. \n(Requires firmware version: 2.0.1 or newer)",
     "doc": "panasonic/cncnt/README.md",
     "tags": ["the-pill", "uart", "hvac", "heat-pump", "panasonic", "cn-cnt"]
+  },
+  {
+    "fname": "ouman/eh800b-usb/ouman_eh800b_usb.shelly.js",
+    "title": "Ouman EH-800B over USB",
+    "description": "Reads and controls an Ouman EH-800B heating controller through its USB service port with a CH376S USB-host module (HW-252) on the Pill UART: virtual components in the Shelly app, HTTP and MQTT. Install together with \"Ouman EH-800B companion\" on the same Pill. In development, bench-tested. \n(Requires firmware version: 2.0.1 or newer)",
+    "doc": "ouman/eh800b-usb/README.md",
+    "tags": ["the-pill", "uart", "heating", "ouman", "eh-800", "usb", "ch376s"]
+  },
+  {
+    "fname": "ouman/eh800b-usb/ouman_eh800b_companion.shelly.js",
+    "title": "Ouman EH-800B companion",
+    "description": "Companion for \"Ouman EH-800B over USB\" on the same Pill: creates the virtual components, publishes Home Assistant MQTT discovery and reboots the Pill if the main script has stopped on an error. In development, bench-tested. \n(Requires firmware version: 2.0.1 or newer)",
+    "doc": "ouman/eh800b-usb/README.md",
+    "tags": ["the-pill", "uart", "heating", "ouman", "eh-800", "home-assistant"]
   }
 ]
