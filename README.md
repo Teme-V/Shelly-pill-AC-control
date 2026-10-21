@@ -20,6 +20,7 @@ installation guide.** This page only shows what exists and where to find it.
 | Gree / Sinclair | Wi-Fi dongle port | — | analysed, not started | — |
 | Samsung | F1/F2 (RS-485) | — | waiting for the Pill RS-485 add-on | — |
 | Mitsubishi Heavy Industries | CNS (SPI) | — | not feasible with a script (SPI, the unit is the master) | — |
+| Ouman EH-800B (heating controller) | USB service port via a CH376S USB-host module (HW-252) | `ouman_eh800b_usb.shelly.js` + `ouman_eh800b_companion.shelly.js` | in development | [`ouman/eh800b-usb/`](ouman/eh800b-usb/) |
 
 *production* = runs on a real unit with firmware 2.0.1 · *in development* = script exists and
 is being tested · *analysed* = protocol studied from open-source implementations, no script yet.
@@ -40,6 +41,8 @@ The CN105, CN-CNT, CN22 and dongle ports use **5 V logic**; the Pill uses 3.3 V.
   different pin orders, so wire each adapter for its own port only.
 * Each folder has a `wiring.png` for its port. Switch the indoor unit off at the mains before
   opening it.
+* The Ouman EH-800B is different: it has a **USB** service port. The Pill talks to it through a
+  CH376S USB-host module (3.3 V logic, no level shifter); see [`ouman/eh800b-usb/`](ouman/eh800b-usb/).
 
 ## Install from the Script Library
 

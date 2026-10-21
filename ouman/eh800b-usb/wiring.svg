@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Source of wiring.png (Ouman EH-800B USB -> HW-252 CH376S USB-host module -> Shelly Pill), drawn from README section 1.
+     Bench-verified 20.-21.10.2026: HW-252 (CH376S, IC version 0x41), Pill fw 2.0.1, EH-800B V3.0.0.
+     Render at 1600 x 1000 px, device scale factor 1, e.g. a headless Chrome screenshot of this file. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000"
+     font-family="Arial, Helvetica, sans-serif">
+  <defs>
+    <style>
+      .box   { stroke: #222222; stroke-width: 3; }
+      .pin   { stroke: #222222; stroke-width: 2; fill: #ffffff; }
+      .w     { fill: none; stroke-width: 5; stroke-linejoin: round; }
+      .t     { font-size: 24px; font-weight: bold; fill: #222222; text-anchor: middle; dominant-baseline: middle; }
+      .sub   { font-size: 17px; fill: #666666; text-anchor: middle; dominant-baseline: middle; }
+      .lbl   { font-size: 20px; fill: #222222; dominant-baseline: middle; }
+      .end   { text-anchor: end; }
+      .mid   { text-anchor: middle; }
+      .note  { font-size: 18px; fill: #222222; }
+      .warn  { font-size: 18px; fill: #b00020; }
+      .wire  { font-size: 17px; dominant-baseline: middle; text-anchor: middle; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1000" fill="#ffffff"/>
+
+  <text x="800" y="44" font-size="32" font-weight="bold" fill="#222222" text-anchor="middle" dominant-baseline="middle">Ouman EH-800B (USB) -&gt; HW-252 CH376S -&gt; Shelly Pill (fw 2.0.1, js_uart, 115200 8N1)</text>
+
+  <!-- ===== Ouman EH-800B ===== -->
+  <rect class="box" x="60" y="150" width="300" height="300" rx="14" fill="#eef3fb"/>
+  <text class="t" x="210" y="195">Ouman EH-800B</text>
+  <text class="sub" x="210" y="225">heating controller</text>
+  <text class="sub" x="210" y="250">USB service port (CDC-ACM)</text>
+  <text class="sub" x="210" y="275">VID:PID eb03:0920</text>
+  <rect class="pin" x="300" y="330" width="60" height="70" rx="6"/>
+  <text class="lbl end" x="290" y="365">USB</text>
+
+  <!-- ===== HW-252 ===== -->
+  <rect class="box" x="560" y="130" width="460" height="610" rx="14" fill="#f3f8ee"/>
+  <text class="t" x="790" y="175">HW-252 (CH376S)</text>
+  <text class="sub" x="790" y="205">USB host, 3.3 V logic (LM1117), IC 0x41</text>
+  <!-- USB-A -->
+  <rect class="pin" x="560" y="330" width="70" height="70" rx="6"/>
+  <text class="lbl" x="645" y="365">USB-A (VBUS = H2 +5V)</text>
+  <!-- H1 S row -->
+  <text class="lbl" x="840" y="260" font-weight="bold">H1, row "S"</text>
+  <rect class="pin" x="970" y="285" width="50" height="34" rx="4"/>
+  <text class="lbl end" x="955" y="302">rxd</text>
+  <rect class="pin" x="970" y="335" width="50" height="34" rx="4"/>
+  <text class="lbl end" x="955" y="352">txd</text>
+  <rect class="pin" x="970" y="385" width="50" height="34" rx="4"/>
+  <text class="lbl end" x="955" y="402">gnd</text>
+  <!-- H2 -->
+  <text class="lbl" x="840" y="470" font-weight="bold">H2</text>
+  <rect class="pin" x="970" y="495" width="50" height="34" rx="4"/>
+  <text class="lbl end" x="955" y="512">+5V</text>
+  <rect class="pin" x="970" y="545" width="50" height="34" rx="4"/>
+  <text class="lbl end" x="955" y="562">GND</text>
+  <rect class="pin" x="600" y="600" width="230" height="34" rx="4" fill="#fff6d5" stroke="#222222" stroke-width="2"/>
+  <text class="lbl" x="615" y="617">baud jumper to GND</text>
+  <text class="sub" x="715" y="655">= 115200 (no jumper = 9600)</text>
+  <text class="warn" x="590" y="710" font-size="17" dominant-baseline="middle">H2 RD / WR = parallel-bus strobes, NOT the UART</text>
+
+  <!-- ===== Shelly Pill ===== -->
+  <rect class="box" x="1240" y="210" width="300" height="250" rx="14" fill="#eef3fb"/>
+  <text class="t" x="1390" y="245">Shelly Pill</text>
+  <text class="sub" x="1390" y="272">fw 2.0.1, mode js_uart</text>
+  <rect class="pin" x="1240" y="285" width="60" height="34" rx="4"/>
+  <text class="lbl" x="1315" y="302">IO1 (TX)</text>
+  <rect class="pin" x="1240" y="335" width="60" height="34" rx="4"/>
+  <text class="lbl" x="1315" y="352">IO2 (RX)</text>
+  <rect class="pin" x="1240" y="385" width="60" height="34" rx="4"/>
+  <text class="lbl" x="1315" y="402">GND</text>
+
+  <!-- ===== 5 V supply ===== -->
+  <rect class="box" x="1240" y="520" width="300" height="120" rx="14" fill="#fbeeee"/>
+  <text class="t" x="1390" y="560">5 V supply</text>
+  <text class="sub" x="1390" y="590">module + USB VBUS, ~0.5 A</text>
+  <rect class="pin" x="1240" y="495" width="0" height="0"/>
+
+  <!-- ===== Wires ===== -->
+  <!-- USB cable -->
+  <path class="w" stroke="#555555" d="M 360 365 L 560 365"/>
+  <text class="wire" x="460" y="345">USB cable</text>
+  <!-- Pill TX -> rxd -->
+  <path class="w" stroke="#d35400" d="M 1020 302 L 1240 302"/>
+  <text class="wire" x="1130" y="285" fill="#d35400">TX -&gt; rxd</text>
+  <!-- txd -> Pill RX -->
+  <path class="w" stroke="#1f77b4" d="M 1020 352 L 1240 352"/>
+  <text class="wire" x="1130" y="335" fill="#1f77b4">txd -&gt; RX</text>
+  <!-- GND -->
+  <path class="w" stroke="#222222" d="M 1020 402 L 1240 402"/>
+  <text class="wire" x="1130" y="385">GND</text>
+  <!-- 5V -->
+  <path class="w" stroke="#c0392b" d="M 1020 512 L 1150 512 L 1150 560 L 1240 560"/>
+  <text class="wire" x="1090" y="495" fill="#c0392b">+5V</text>
+  <!-- GND supply -->
+  <path class="w" stroke="#222222" d="M 1020 562 L 1120 562 L 1120 610 L 1240 610"/>
+  <text class="wire" x="1080" y="590">GND</text>
+
+  <!-- ===== Notes ===== -->
+  <text class="note" x="60" y="800">1. No level shifter: the module logic is 3.3 V. GND is common for the Pill, the module and the supply.</text>
+  <text class="note" x="60" y="832">2. P_S jumper as shipped (UART). The module reads P_S and the baud jumper at power-up: power-cycle it after a change.</text>
+  <text class="note" x="60" y="864">3. D1 (ACT#) lights when the EH-800B is attached and host mode is on.</text>
+  <text class="note" x="60" y="896">4. A full module reset needs BOTH the 5 V and the USB cable removed: the EH-800B back-feeds the module through VBUS.</text>
+  <text class="note" x="60" y="928">5. Power the Pill from its own USB-C or the same 5 V supply. Only one UART script; after stopping it, reboot the Pill.</text>
+</svg>

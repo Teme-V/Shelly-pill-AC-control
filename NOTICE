@@ -18,3 +18,19 @@ The script is an independent implementation for the Shelly scripting engine
   * echavet/MitsubishiCN105ESPHome - ESPHome implementation of the protocol
     https://github.com/echavet/MitsubishiCN105ESPHome
     No license file in the repository.
+
+Ouman EH-800B over USB (ouman/eh800b-usb/)
+------------------------------------------
+USB shell commands, replies and the trend.log layout were observed on an
+EH-800B V3.0.0. Property and object numbers and the trend.log record layout
+were cross-checked with the projects below. The scripts are an independent
+implementation for the Shelly scripting engine (Espruino) and do not contain
+code from those projects.
+
+  * tjani8/ouman-eh-800-home-assistant - EH-800 register list (S_<id>_85)
+    https://github.com/tjani8/ouman-eh-800-home-assistant
+    License MIT.
+
+  * mcgurk/Ouman_EH-800_USB-serial - EH-800B USB shell and trend.log notes
+    https://github.com/mcgurk/Ouman_EH-800_USB-serial
+    No license file in the repository.
