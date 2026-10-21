@@ -73,7 +73,7 @@
   <!-- ===== 5 V supply ===== -->
   <rect class="box" x="1240" y="520" width="300" height="120" rx="14" fill="#fbeeee"/>
   <text class="t" x="1390" y="560">5 V supply</text>
-  <text class="sub" x="1390" y="590">module + USB VBUS, ~0.5 A</text>
+  <text class="sub" x="1390" y="590">Pill 5V terminal or separate 5 V</text>
   <rect class="pin" x="1240" y="495" width="0" height="0"/>
 
   <!-- ===== Wires ===== -->
@@ -100,6 +100,6 @@
   <text class="note" x="60" y="800">1. No level shifter: the module logic is 3.3 V. GND is common for the Pill, the module and the supply.</text>
   <text class="note" x="60" y="832">2. P_S jumper as shipped (UART). The module reads P_S and the baud jumper at power-up: power-cycle it after a change.</text>
   <text class="note" x="60" y="864">3. D1 (ACT#) lights when the EH-800B is attached and host mode is on.</text>
-  <text class="note" x="60" y="896">4. A full module reset needs BOTH the 5 V and the USB cable removed: the EH-800B back-feeds the module through VBUS.</text>
+  <text class="note" x="60" y="896">4. A full module reset needs the 5 V AND the USB cable removed: the EH-800B (D+) and the Pill TX back-feed the 3.3 V side.</text>
   <text class="note" x="60" y="928">5. Power the Pill from its own USB-C or the same 5 V supply. Only one UART script; after stopping it, reboot the Pill.</text>
 </svg>

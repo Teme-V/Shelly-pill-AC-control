@@ -56,7 +56,7 @@
  * MQTT  <prefix>/state (retained), /diag, /set, /prop/<id> (retained),
  *       /debug (TX/RX hex while DEBUG).
  *
- * version 20261021-16
+ * version 20261021-17
  */
 
 // ===================================================================
@@ -77,11 +77,14 @@ let CFG = {
   PROPS: "127,134,135,6,7,8,26,102,130,54,55,91,112,230",
   PROP_SCAN: true,
   // optional: power-cycle the HW-252 through another Shelly when the CH376S stops answering
-  // (it hangs when the USB device is unplugged mid-transfer); the relay switches the module
-  // 5 V and turns itself back on (toggle_after), e.g.
-  // "http://<relay-ip>/rpc/Switch.Set?id=0&on=false&toggle_after=5"; "" = off
+  // (it hangs when the USB device is unplugged mid-transfer). The relay cuts the module 5 V,
+  // or a Shelly Plug cuts the Pill's own USB-C supply (Pill + module), and turns itself back
+  // on (toggle_after), e.g. "http://<relay-ip>/rpc/Switch.Set?id=0&on=false&toggle_after=10";
+  // "" = off. Limits are kept in KVS "ouman_mres" so they survive the Pill's own power cut.
   MODULE_RESET_URL: "",
-  MODULE_RESET_AFTER: 3, // start-ups in a row with no answer from the module
+  MODULE_RESET_AFTER: 3,     // start-ups in a row with no answer from the module
+  MODULE_RESET_MIN_S: 600,   // at least this long between power cycles
+  MODULE_RESET_PER_DAY: 6,
   DEBUG: false
 };
 
@@ -120,7 +123,7 @@ let queue = [], curCmd = "", rc = 0, propIdx = 0, scanId = 1, trendWant = false;
 let V = { outdoor: null, supply: null, room: null, valve: null, ret: null, dhw: null, room_set: null, mode: null, kp: null };
 let M = [], P = {}, CH = [0, 0, 0], vcH = [null, null, null, null, null, null, null, null, null];
 let ST = { link: false, dev: "", ts: 0, n: 0, err: "", cmd: "", out: "", rej: "", rej_ts: 0, mres: 0, mres_ts: 0, mres_err: "" };
-let modFails = 0;
+let modFails = 0, mresBusy = false;
 let TRD = { epoch: 0, raw: null, hex: "", ptr: -1, k: -1, pk: 0, need: 0, ts: 0, s: 0, busy: false, err: "" };
 // trend.log stream parser: 22 B header, 20 B records (u32 epoch + 8 x int16/10)
 let TR = { on: false, pos: 0, rec: "", best: -1, bestRec: "", n: 0, hdr: "" };
@@ -256,22 +259,39 @@ function fail(why) {
   if (why === "no reply from the controller") { initTries = 5; }   // retry every 30 s
   pubState();
   vcSync();
-  // the module itself is silent: after MODULE_RESET_AFTER start-ups cut its power (max every 2 min)
+  // the module itself is silent: after MODULE_RESET_AFTER start-ups cut its power
   if (why.indexOf("CHECK_EXIST") >= 0 || why.indexOf("no status") >= 0) { modFails++; }
-  if (CFG.MODULE_RESET_URL && modFails >= CFG.MODULE_RESET_AFTER && nowS() - ST.mres_ts >= 120) {
-    modFails = 0; ST.mres++; ST.mres_ts = nowS();
-    print("[ouman] module power cycle " + JSON.stringify(ST.mres));
-    Shelly.call("HTTP.GET", { url: CFG.MODULE_RESET_URL, timeout: 5 }, modResetCb, null);
-    gT(12000, init);
-    return;
+  if (CFG.MODULE_RESET_URL && modFails >= CFG.MODULE_RESET_AFTER && !mresBusy) {
+    modFails = 0; mresBusy = true;
+    Shelly.call("KVS.Get", { key: "ouman_mres" }, mresGetCb, null);
   }
   initTries++;
   // generation-bound: of several quick fail()s only the last one restarts the link
   gT(initTries < 5 ? 3000 : 30000, init);
 }
+// KVS "ouman_mres" = "<day>:<count>:<last unixtime>"; no clock yet -> no power cycle
+function mresGetCb(res, err, msg, ud) {
+  let now = nowS(), day = Math.floor(now / 86400), n = 0, last = 0;
+  if (err === 0 && res && res.value) {
+    let p = res.value.split(":");
+    if (Number(p[0]) === day) { n = Number(p[1]); }
+    last = Number(p[2]);
+  }
+  if (!now || now < 1700000000 || n >= CFG.MODULE_RESET_PER_DAY || now - last < CFG.MODULE_RESET_MIN_S) {
+    ST.mres_err = "limit"; mresBusy = false; return;
+  }
+  ST.mres = n + 1; ST.mres_ts = now;
+  Shelly.call("KVS.Set", { key: "ouman_mres", value: JSON.stringify(day) + ":" + JSON.stringify(n + 1) + ":" + JSON.stringify(now) }, mresSetCb, null);
+}
+function mresSetCb(res, err, msg, ud) {
+  if (err !== 0) { ST.mres_err = "kvs " + msg; mresBusy = false; return; }
+  print("[ouman] module power cycle " + JSON.stringify(ST.mres) + " today");
+  Shelly.call("HTTP.GET", { url: CFG.MODULE_RESET_URL, timeout: 5 }, modResetCb, null);
+}
 function modResetCb(res, err, msg, ud) {
   ST.mres_err = (err !== 0) ? "rpc " + msg : ((res && res.code !== 200) ? "http " + JSON.stringify(res.code) : "");
   if (ST.mres_err) { print("[ouman] module power cycle failed: " + ST.mres_err); }
+  mresBusy = false;
 }
 function init() { busy = true; inTog = 0; outTog = 0; iK = 0; initStep(""); }
 function initStep(r) {

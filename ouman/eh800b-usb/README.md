@@ -38,32 +38,38 @@ all scripts together about 25 kB of heap.
   module back through VBUS.
 * D1 (ACT#) lights when the EH-800B is attached and host mode is on.
 
-### Optional: automatic module reset (design, 21.10.2026 — not yet built)
+### Optional: automatic module reset (21.10.2026 — script ready, hardware not built yet)
 
 The CH376S hangs when the EH-800B is unplugged in the middle of a transfer, and only a power cycle
-brings it back (section 9). The Pill cannot switch anything itself in `js_uart` mode (all three IO
-pins are reserved), so another Shelly with a relay cuts the module's 5 V on request:
+brings it back (section 9). A Pill reboot does not help: the Pill's 5V terminal stays powered from
+USB-C. The Pill cannot switch anything itself in `js_uart` mode (all three IO pins are reserved), so
+another Shelly cuts the power and turns it back on by itself (`toggle_after`):
 
-| Part | Setting |
-|---|---|
-| Relay | any Gen2/Gen3 Shelly with a Switch, e.g. a dry-contact Shelly 1 (Mini) Gen3 in series with the module's +5 V, or a Shelly Plug switching the 5 V adapter |
-| Relay config | `initial_state: "on"` and `auto_on: true`, `auto_on_delay: 10` (power comes back even if the relay reboots or is switched off by hand) |
-| Script | `MODULE_RESET_URL: "http://<relay-ip>/rpc/Switch.Set?id=0&on=false&toggle_after=5"` |
+| Option | Switch | Power-cycles | Extra parts |
+|---|---|---|---|
+| 1 — module fed from the Pill's 5V terminal | Shelly Plug in front of the Pill's USB-C adapter | Pill + HW-252 | 330 Ω (below) |
+| 2 — module fed separately | dry-contact Shelly relay (e.g. 1 Mini Gen3) in the module's +5 V wire | HW-252 only | 330 Ω + 1 kΩ (below) |
 
-After `MODULE_RESET_AFTER` (3) start-ups in a row without an answer from the module, the script
-calls the URL, waits 12 s and starts again; at most once every 2 minutes. `diag.mres`, `mres_ts`
-and `mres_err` show the count, the time and an error.
+* Relay / plug config: `initial_state: "on"`, `auto_on: true`, `auto_on_delay: 10`.
+* Script: `MODULE_RESET_URL: "http://<relay-ip>/rpc/Switch.Set?id=0&on=false&toggle_after=10"`.
+* After `MODULE_RESET_AFTER` (3) start-ups in a row without an answer from the module the script
+  cuts the power, at least `MODULE_RESET_MIN_S` (600 s) apart and at most `MODULE_RESET_PER_DAY` (6)
+  times a day, and never before the Pill's clock is set. The limits live in KVS `ouman_mres`, so
+  option 1 (the Pill switches its own power off) cannot loop. `diag.mres`, `mres_ts` and `mres_err`
+  show the count, the time and an error (`limit` = held back by the limits).
+* Without USB-C the Pill does not run on the back-feed (bench 21.10.2026).
 
-**Back-feed must be blocked first**, otherwise the EH-800B keeps the module powered through the
-USB cable and the power cut does not reset it. Measure with the module 5 V disconnected, the USB
-cable attached and the controller on: (1) H2 +5V to GND, (2) the module 3.3 V rail (LM1117
-output) to GND.
+**Back-feed must be blocked**, otherwise the module never resets. Bench measurement 21.10.2026 with
+the module 5 V cut, the USB cable attached and the controller on: **3.3 V rail 2.5 V, H2 +5V 1.4 V**.
+The module is fed into its 3.3 V side, not through VBUS: through the controller's D+ pull-up and,
+while the Pill is powered, the Pill's TX idle level, both via the CH376S protection diodes (the
+1.4 V on +5V leaks back through the LM1117). A VBUS diode would not help. Fix:
 
-| Reading | Back-feed path | Fix |
-|---|---|---|
-| (1) ≥ 3 V | VBUS | Schottky diode (1N5817 / SS14) in the cable's VBUS wire, anode towards the HW-252 |
-| (1) < 1 V, (2) 1–3 V | D+/D− pull-up through the CH376S | 330 Ω from the 3.3 V rail to GND |
-| both < 0.5 V | none | the relay alone is enough |
+* **330 Ω from the 3.3 V rail (LM1117 output) to GND** — pulls the rail to ~0.5 V against the
+  1.5 kΩ D+ pull-up when the power is cut; ~10 mA while running.
+* **Option 2 only: 1 kΩ in series in the Pill IO1 (TX) → rxd wire** — the Pill's push-pull TX
+  would otherwise hold the rail up; 115200 baud is not affected.
+* Check: with the power cut the 3.3 V rail must read below 1 V.
 
 ## 2. Prepare the Pill
 
@@ -99,6 +105,7 @@ The CFG block at the top of each script is the only part to edit. Main script:
 | `PROP_SCAN` | true | also read every property id 1–257 and 327–422 in turn → `<prefix>/prop/<id>` |
 | `MODULE_RESET_URL` | `""` | optional relay URL that power-cycles the HW-252 (section 1, automatic module reset) |
 | `MODULE_RESET_AFTER` | 3 | start-ups in a row without an answer from the module before the power cycle |
+| `MODULE_RESET_MIN_S` / `MODULE_RESET_PER_DAY` | 600 / 6 | spacing and daily cap of the power cycles (kept in KVS `ouman_mres`) |
 
 ## 4. What you get
 
@@ -258,6 +265,12 @@ UART script only receives after a fresh boot. At most 6 reboots per day (KVS `ou
   cut off by a reboot later sends EOT into the next reply; the script cancels and flushes at start.
 * The numbering is the same as in the EH-800 Ethernet interface (`S_<id>_85`); the Home Assistant
   `ouman_eh_800` integration uses that HTTP interface and does not apply to the EH-800B.
+
+## Changes in 20261021-17
+
+* The power-cycle limits moved to KVS `ouman_mres` (≥ 600 s apart, ≤ 6 a day, only with the clock
+  set): a plug that power-cycles the Pill itself cannot make it loop. Tested on the bench with a
+  harmless URL: first series → one call + KVS entry, second series at once → `limit`.
 
 ## Changes in 20261021-16
 
