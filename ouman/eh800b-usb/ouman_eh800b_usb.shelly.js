@@ -56,7 +56,7 @@
  * MQTT  <prefix>/state (retained), /diag, /set, /prop/<id> (retained),
  *       /debug (TX/RX hex while DEBUG).
  *
- * version 20261021-15
+ * version 20261021-16
  */
 
 // ===================================================================
@@ -76,6 +76,12 @@ let CFG = {
   WRITE_OK: ",54,55,59,67,69,71,73,75,81,91,112,113,114,126,127,134,135,",
   PROPS: "127,134,135,6,7,8,26,102,130,54,55,91,112,230",
   PROP_SCAN: true,
+  // optional: power-cycle the HW-252 through another Shelly when the CH376S stops answering
+  // (it hangs when the USB device is unplugged mid-transfer); the relay switches the module
+  // 5 V and turns itself back on (toggle_after), e.g.
+  // "http://<relay-ip>/rpc/Switch.Set?id=0&on=false&toggle_after=5"; "" = off
+  MODULE_RESET_URL: "",
+  MODULE_RESET_AFTER: 3, // start-ups in a row with no answer from the module
   DEBUG: false
 };
 
@@ -113,7 +119,8 @@ let ready = false, busy = false, initTries = 0, WRW = 20;
 let queue = [], curCmd = "", rc = 0, propIdx = 0, scanId = 1, trendWant = false;
 let V = { outdoor: null, supply: null, room: null, valve: null, ret: null, dhw: null, room_set: null, mode: null, kp: null };
 let M = [], P = {}, CH = [0, 0, 0], vcH = [null, null, null, null, null, null, null, null, null];
-let ST = { link: false, dev: "", ts: 0, n: 0, err: "", cmd: "", out: "", rej: "", rej_ts: 0 };
+let ST = { link: false, dev: "", ts: 0, n: 0, err: "", cmd: "", out: "", rej: "", rej_ts: 0, mres: 0, mres_ts: 0, mres_err: "" };
+let modFails = 0;
 let TRD = { epoch: 0, raw: null, hex: "", ptr: -1, k: -1, pk: 0, need: 0, ts: 0, s: 0, busy: false, err: "" };
 // trend.log stream parser: 22 B header, 20 B records (u32 epoch + 8 x int16/10)
 let TR = { on: false, pos: 0, rec: "", best: -1, bestRec: "", n: 0, hdr: "" };
@@ -249,8 +256,22 @@ function fail(why) {
   if (why === "no reply from the controller") { initTries = 5; }   // retry every 30 s
   pubState();
   vcSync();
+  // the module itself is silent: after MODULE_RESET_AFTER start-ups cut its power (max every 2 min)
+  if (why.indexOf("CHECK_EXIST") >= 0 || why.indexOf("no status") >= 0) { modFails++; }
+  if (CFG.MODULE_RESET_URL && modFails >= CFG.MODULE_RESET_AFTER && nowS() - ST.mres_ts >= 120) {
+    modFails = 0; ST.mres++; ST.mres_ts = nowS();
+    print("[ouman] module power cycle " + JSON.stringify(ST.mres));
+    Shelly.call("HTTP.GET", { url: CFG.MODULE_RESET_URL, timeout: 5 }, modResetCb, null);
+    gT(12000, init);
+    return;
+  }
   initTries++;
-  Timer.set(initTries < 5 ? 3000 : 30000, false, init, null);
+  // generation-bound: of several quick fail()s only the last one restarts the link
+  gT(initTries < 5 ? 3000 : 30000, init);
+}
+function modResetCb(res, err, msg, ud) {
+  ST.mres_err = (err !== 0) ? "rpc " + msg : ((res && res.code !== 200) ? "http " + JSON.stringify(res.code) : "");
+  if (ST.mres_err) { print("[ouman] module power cycle failed: " + ST.mres_err); }
 }
 function init() { busy = true; inTog = 0; outTog = 0; iK = 0; initStep(""); }
 function initStep(r) {
@@ -274,7 +295,7 @@ function initWait() { gT(300, initFlush); }
 function initFlush() { drain(initDone); }
 function initDone() {
   if (txt.length) { dbg("flushed " + hexs(txt, 32)); }
-  ready = true; busy = false; initTries = 0; ST.link = true; ST.err = "";
+  ready = true; busy = false; initTries = 0; modFails = 0; ST.link = true; ST.err = "";
   print("[ouman] link up");
   queue = [];
   if (ST.dev === "") { queue.push("DEVINFO"); }
@@ -648,6 +669,8 @@ function diagStr(pre, post) {
   s += ",\"rej_ts\":"; s += JSON.stringify(ST.rej_ts);
   s += ",\"err\":"; s += JSON.stringify(ST.err);
   s += ",\"n\":"; s += JSON.stringify(ST.n);
+  s += ",\"mres\":"; s += JSON.stringify(ST.mres); s += ",\"mres_ts\":"; s += JSON.stringify(ST.mres_ts);
+  s += ",\"mres_err\":"; s += JSON.stringify(ST.mres_err);
   s += "}"; s += post;
   return s;
 }
