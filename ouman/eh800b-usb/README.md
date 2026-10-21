@@ -22,27 +22,38 @@ all scripts together about 25 kB of heap.
 
 ![Wiring](wiring.png)
 
-| Pill | HW-252 |
+The Pill sits on a **5-Terminal Add-on** (terminals 1 5V, 2 IO1, 3 IO2, 4 IO3, 5 GND):
+
+| Add-on terminal | HW-252 / supply |
 |---|---|
-| IO1 (TX) | H1, row "S": **rxd** |
-| IO2 (RX) | H1, row "S": **txd** |
-| GND | H1 **gnd** |
-| — | H2 **+5V / GND** from a 5 V supply (feeds the module and the USB-A VBUS) |
+| 2 IO1 (TX) | H1, row "S": **rxd** |
+| 3 IO2 (RX) | H1, row "S": **txd** |
+| 5 GND | H1 **gnd** and H2 **GND** |
+| 1 5V | H2 **+5V** (feeds the module and the USB-A VBUS) |
+| 1 5V / 5 GND | **5 V supply** (e.g. a USB charger) — the Pill and the module are powered from this one point |
+
+* **One supply for both:** feed 5 V into add-on terminals 1 (5V) and 5 (GND) and leave the Pill's
+  USB-C unplugged — the Pill may be powered from either, but **only from one of them**. The add-on's
+  5V/GND are its optional power terminals ("5V Power for The Pill"); the CN105 and CN-CNT kits power
+  the Pill the same way from the unit's 5 V. Cutting this one supply restarts the Pill and the
+  HW-252 together, which brings the whole chain back (section 9).
 
 * The HW-252 logic is 3.3 V (LM1117 on the board): **no level shifter**.
 * **Baud jumper on H2 to GND = 115200** (`CFG.BAUD`, default); without the jumper the module
   runs at 9600 and the script must use `BAUD: 9600` (everything is about 10x slower).
 * **H2 RD / WR are parallel-bus strobes, not the UART.** Wiring the Pill to them gives no answer at all.
 * P_S jumper as shipped. The module reads P_S and the baud jumper at power-up: power-cycle it after a change.
-* **A full module reset needs both the 5 V and the USB cable removed**: the EH-800B feeds the
-  module back through VBUS.
+* A module reset needs its 5 V cut for a few seconds. On the bench (21.10.2026) this was enough with
+  the controller's USB cable still attached, although the controller back-feeds the module's 3.3 V
+  side to ~2.5 V; if the module does not come back, unplug the USB cable as well. A Pill reboot alone
+  does not cut the 5 V.
 * D1 (ACT#) lights when the EH-800B is attached and host mode is on.
 
-### Optional: automatic module reset (21.10.2026 — script ready, hardware not built yet)
+### Possible later development: automatic module reset (21.10.2026 — script ready, not built)
 
 The CH376S hangs when the EH-800B is unplugged in the middle of a transfer, and only a power cycle
-brings it back (section 9). A Pill reboot does not help: the Pill's 5V terminal stays powered from
-USB-C. The Pill cannot switch anything itself in `js_uart` mode (all three IO pins are reserved), so
+brings it back (section 9). This is a possible later development path (decided 21.10.2026: for now the
+supply is cut by hand). A Pill reboot does not help: the 5 V stays on. The Pill cannot switch anything itself in `js_uart` mode (all three IO pins are reserved), so
 another Shelly cuts the power and turns it back on by itself (`toggle_after`):
 
 | Option | Switch | Power-cycles | Extra parts |
@@ -240,8 +251,8 @@ UART script only receives after a fresh boot. At most 6 reboots per day (KVS `ou
 | `link down: no USB device` | EH-800B not attached or the module has no 5 V |
 | Link up but all replies empty | Another UART script ran first after boot: reboot the Pill |
 | `link down: no reply from the controller` (USB works, no banner, every read NAKed) | The controller's USB shell has stopped (seen once after the USB cable was moved to a PC and back). A power cycle with the USB cable attached does **not** help, because VBUS keeps the controller's USB side powered. Unplug the USB cable, switch the controller off for ≥ 10 s, switch it on, wait for the display, plug the USB cable back |
-| Link stays down after the USB cable was unplugged and plugged back (`CHECK_EXIST`, D1 off) | The CH376S hangs when the USB device disappears in the middle of a transfer. Reset the module: USB cable out (it back-feeds the module), module 5 V off for a few seconds, 5 V on, USB cable back. The script reconnects within 30 s; the Pill needs no reboot |
-| Values stop, module does not answer after a wire came loose | Same module reset as above |
+| Link stays down after the USB cable was unplugged and plugged back (`CHECK_EXIST`, D1 off) | The CH376S hangs when the USB device disappears in the middle of a transfer. Cut the shared 5 V supply (add-on terminals 1/5) for a few seconds; the Pill and the module restart and the link comes back by itself. If it does not, unplug the USB cable during the power cut too |
+| Values stop, module does not answer after a wire came loose | Same power cut as above |
 | `return` / `dhw` stay `null` | No measurement channel has type 283 / 237 (properties 6/7/8), or the trend has not been read yet (`trend_busy`, `trend.err`) |
 | Pill web UI slow every 30 min for ~2 min | A trend read is running; raise `TREND_MIN` if this matters |
 

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Source of wiring.png (Ouman EH-800B USB -> HW-252 CH376S USB-host module -> Shelly Pill), drawn from README section 1.
+<!-- Source of wiring.png (Ouman EH-800B USB -> HW-252 CH376S USB-host module -> Shelly Pill + 5-Terminal Add-on), drawn from README section 1.
      Bench-verified 20.-21.10.2026: HW-252 (CH376S, IC version 0x41), Pill fw 2.0.1, EH-800B V3.0.0.
+     One 5 V supply on add-on terminals 1 (5V) / 5 (GND) feeds the Pill and the module (the Pill's USB-C is then not used).
      Render at 1600 x 1000 px, device scale factor 1, e.g. a headless Chrome screenshot of this file. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000"
      font-family="Arial, Helvetica, sans-serif">
@@ -13,9 +14,8 @@
       .sub   { font-size: 17px; fill: #666666; text-anchor: middle; dominant-baseline: middle; }
       .lbl   { font-size: 20px; fill: #222222; dominant-baseline: middle; }
       .end   { text-anchor: end; }
-      .mid   { text-anchor: middle; }
       .note  { font-size: 18px; fill: #222222; }
-      .warn  { font-size: 18px; fill: #b00020; }
+      .warn  { font-size: 17px; fill: #b00020; }
       .wire  { font-size: 17px; dominant-baseline: middle; text-anchor: middle; }
     </style>
   </defs>
@@ -37,69 +37,73 @@
   <rect class="box" x="560" y="130" width="460" height="610" rx="14" fill="#f3f8ee"/>
   <text class="t" x="790" y="175">HW-252 (CH376S)</text>
   <text class="sub" x="790" y="205">USB host, 3.3 V logic (LM1117), IC 0x41</text>
-  <!-- USB-A -->
   <rect class="pin" x="560" y="330" width="70" height="70" rx="6"/>
-  <text class="lbl" x="645" y="365">USB-A (VBUS = H2 +5V)</text>
-  <!-- H1 S row -->
-  <text class="lbl" x="840" y="260" font-weight="bold">H1, row "S"</text>
+  <text class="lbl" x="565" y="428">USB-A</text>
+  <text class="sub" x="672" y="455">VBUS = H2 +5V</text>
   <rect class="pin" x="970" y="285" width="50" height="34" rx="4"/>
-  <text class="lbl end" x="955" y="302">rxd</text>
+  <text class="lbl end" x="955" y="302">H2 +5V</text>
   <rect class="pin" x="970" y="335" width="50" height="34" rx="4"/>
-  <text class="lbl end" x="955" y="352">txd</text>
+  <text class="lbl end" x="955" y="352">H1 "S" rxd</text>
   <rect class="pin" x="970" y="385" width="50" height="34" rx="4"/>
-  <text class="lbl end" x="955" y="402">gnd</text>
-  <!-- H2 -->
-  <text class="lbl" x="840" y="470" font-weight="bold">H2</text>
-  <rect class="pin" x="970" y="495" width="50" height="34" rx="4"/>
-  <text class="lbl end" x="955" y="512">+5V</text>
-  <rect class="pin" x="970" y="545" width="50" height="34" rx="4"/>
-  <text class="lbl end" x="955" y="562">GND</text>
+  <text class="lbl end" x="955" y="402">H1 "S" txd</text>
+  <rect class="pin" x="970" y="485" width="50" height="34" rx="4"/>
+  <text class="lbl end" x="955" y="502">H1 "S" gnd</text>
+  <rect class="pin" x="970" y="535" width="50" height="34" rx="4"/>
+  <text class="lbl end" x="955" y="552">H2 GND</text>
   <rect class="pin" x="600" y="600" width="230" height="34" rx="4" fill="#fff6d5" stroke="#222222" stroke-width="2"/>
   <text class="lbl" x="615" y="617">baud jumper to GND</text>
   <text class="sub" x="715" y="655">= 115200 (no jumper = 9600)</text>
-  <text class="warn" x="590" y="710" font-size="17" dominant-baseline="middle">H2 RD / WR = parallel-bus strobes, NOT the UART</text>
+  <text class="warn" x="590" y="710" dominant-baseline="middle">H2 RD / WR = parallel-bus strobes, NOT the UART</text>
 
-  <!-- ===== Shelly Pill ===== -->
-  <rect class="box" x="1240" y="210" width="300" height="250" rx="14" fill="#eef3fb"/>
-  <text class="t" x="1390" y="245">Shelly Pill</text>
-  <text class="sub" x="1390" y="272">fw 2.0.1, mode js_uart</text>
+  <!-- ===== Shelly Pill + 5-Terminal Add-on ===== -->
+  <rect class="box" x="1240" y="210" width="300" height="320" rx="14" fill="#eef3fb"/>
+  <text class="t" x="1390" y="240">Shelly Pill</text>
+  <text class="sub" x="1390" y="266">+ 5-Terminal Add-on, js_uart</text>
   <rect class="pin" x="1240" y="285" width="60" height="34" rx="4"/>
-  <text class="lbl" x="1315" y="302">IO1 (TX)</text>
+  <text class="lbl" x="1315" y="302">1  5V</text>
   <rect class="pin" x="1240" y="335" width="60" height="34" rx="4"/>
-  <text class="lbl" x="1315" y="352">IO2 (RX)</text>
+  <text class="lbl" x="1315" y="352">2  IO1 (TX)</text>
   <rect class="pin" x="1240" y="385" width="60" height="34" rx="4"/>
-  <text class="lbl" x="1315" y="402">GND</text>
+  <text class="lbl" x="1315" y="402">3  IO2 (RX)</text>
+  <rect class="pin" x="1240" y="435" width="60" height="34" rx="4"/>
+  <text class="lbl" x="1315" y="452" fill="#888888">4  IO3 (not used)</text>
+  <rect class="pin" x="1240" y="485" width="60" height="34" rx="4"/>
+  <text class="lbl" x="1315" y="502">5  GND</text>
 
   <!-- ===== 5 V supply ===== -->
-  <rect class="box" x="1240" y="520" width="300" height="120" rx="14" fill="#fbeeee"/>
-  <text class="t" x="1390" y="560">5 V supply</text>
-  <text class="sub" x="1390" y="590">Pill 5V terminal or separate 5 V</text>
-  <rect class="pin" x="1240" y="495" width="0" height="0"/>
+  <rect class="box" x="1240" y="610" width="300" height="120" rx="14" fill="#fbeeee"/>
+  <text class="t" x="1390" y="645">5 V supply (e.g. USB)</text>
+  <text class="sub" x="1390" y="675">Pill + module from one point;</text>
+  <text class="sub" x="1390" y="700">Pill USB-C not used</text>
 
   <!-- ===== Wires ===== -->
   <!-- USB cable -->
   <path class="w" stroke="#555555" d="M 360 365 L 560 365"/>
   <text class="wire" x="460" y="345">USB cable</text>
+  <!-- +5V: HW-252 H2 +5V -> terminal 1 -->
+  <path class="w" stroke="#c0392b" d="M 1020 302 L 1240 302"/>
+  <text class="wire" x="1070" y="285" fill="#c0392b">+5V</text>
   <!-- Pill TX -> rxd -->
-  <path class="w" stroke="#d35400" d="M 1020 302 L 1240 302"/>
-  <text class="wire" x="1130" y="285" fill="#d35400">TX -&gt; rxd</text>
+  <path class="w" stroke="#d35400" d="M 1020 352 L 1240 352"/>
+  <text class="wire" x="1070" y="335" fill="#d35400">TX -&gt; rxd</text>
   <!-- txd -> Pill RX -->
-  <path class="w" stroke="#1f77b4" d="M 1020 352 L 1240 352"/>
-  <text class="wire" x="1130" y="335" fill="#1f77b4">txd -&gt; RX</text>
-  <!-- GND -->
-  <path class="w" stroke="#222222" d="M 1020 402 L 1240 402"/>
-  <text class="wire" x="1130" y="385">GND</text>
-  <!-- 5V -->
-  <path class="w" stroke="#c0392b" d="M 1020 512 L 1150 512 L 1150 560 L 1240 560"/>
-  <text class="wire" x="1090" y="495" fill="#c0392b">+5V</text>
-  <!-- GND supply -->
-  <path class="w" stroke="#222222" d="M 1020 562 L 1120 562 L 1120 610 L 1240 610"/>
-  <text class="wire" x="1080" y="590">GND</text>
+  <path class="w" stroke="#1f77b4" d="M 1020 402 L 1240 402"/>
+  <text class="wire" x="1070" y="385" fill="#1f77b4">txd -&gt; RX</text>
+  <!-- GND: H1 gnd -> terminal 5, H2 GND joins -->
+  <path class="w" stroke="#222222" d="M 1020 502 L 1240 502"/>
+  <text class="wire" x="1060" y="485">GND</text>
+  <path class="w" stroke="#222222" d="M 1020 552 L 1110 552 L 1110 502"/>
+  <circle cx="1110" cy="502" r="7" fill="#222222"/>
+  <!-- supply -> terminals 1 and 5 -->
+  <path class="w" stroke="#c0392b" d="M 1240 650 L 1200 650 L 1200 302"/>
+  <circle cx="1200" cy="302" r="7" fill="#c0392b"/>
+  <path class="w" stroke="#222222" d="M 1240 690 L 1170 690 L 1170 502"/>
+  <circle cx="1170" cy="502" r="7" fill="#222222"/>
 
   <!-- ===== Notes ===== -->
   <text class="note" x="60" y="800">1. No level shifter: the module logic is 3.3 V. GND is common for the Pill, the module and the supply.</text>
   <text class="note" x="60" y="832">2. P_S jumper as shipped (UART). The module reads P_S and the baud jumper at power-up: power-cycle it after a change.</text>
   <text class="note" x="60" y="864">3. D1 (ACT#) lights when the EH-800B is attached and host mode is on.</text>
-  <text class="note" x="60" y="896">4. A full module reset needs the 5 V AND the USB cable removed: the EH-800B (D+) and the Pill TX back-feed the 3.3 V side.</text>
-  <text class="note" x="60" y="928">5. Power the Pill from its own USB-C or the same 5 V supply. Only one UART script; after stopping it, reboot the Pill.</text>
+  <text class="note" x="60" y="896">4. Power: 5 V into add-on terminals 1/5 OR the Pill's USB-C, never both. Cutting it restarts Pill + module (link comes back).</text>
+  <text class="note" x="60" y="928">5. Only one UART script; after stopping it, reboot the Pill. The EH-800B back-feeds the module's 3.3 V side via USB.</text>
 </svg>
