@@ -56,8 +56,9 @@ and pick the script for your unit. Then follow the README in its folder (periphe
 `CFG` block, optional MQTT / Home Assistant). Copying the script by hand into
 **Scripts** → **Add script** works as well.
 
-The Library URL is set in the Pill's own web UI (firmware 2.0.1). Installing through the
-Shelly app or the cloud has not been verified yet.
+Custom library URLs work in the device web UI only; the Shelly app and control.shelly.cloud use
+Shelly's own script library (ALLTERCO/shelly-script-examples), so scripts reach app users once
+they are merged upstream.
 
 ## Repository layout
 
