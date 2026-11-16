@@ -13,7 +13,7 @@
 // and echavet/MitsubishiCN105ESPHome (see NOTICE in the repository).
 // Setup, wiring, MQTT and Home Assistant: README.md at the @link above.
 // Edit only the CFG block. Pill peripheral mode: Serial Communication (js_uart).
-// version 20261116-2
+// version 20261116-3
 
 // ===================================================================
 //  CONFIGURATION - the only block you need to edit
@@ -79,23 +79,14 @@ let CFG = {
   DEBUG_FLUSH_MS: 2000,      // <prefix>/debug: one message per this period
   DEBUG_AUTO_OFF_MIN: 1440   // DEBUG switches itself off after this (0 = never)
 };
-let POWER_B   = [0x00, 0x01];
-let POWER_M   = ["OFF", "ON"];
-let MODE_B    = [0x01,   0x02,  0x03,   0x07,  0x08];
-let MODE_M    = ["HEAT", "DRY", "COOL", "FAN", "AUTO"];
-let FAN_B     = [0x00,   0x01,     0x02, 0x03, 0x05, 0x06];
-let FAN_M     = ["AUTO", "QUIET",  "1",  "2",  "3",  "4"];
-let VANE_B    = [0x00,   0x01, 0x02, 0x03, 0x04, 0x05, 0x07];
-let VANE_M    = ["AUTO", "1",  "2",  "3",  "4",  "5",  "SWING"];
-let WVANE_B   = [0x01,  0x02, 0x03, 0x04, 0x05, 0x08, 0x0c];
-let WVANE_M   = ["<<",  "<",  "|",  ">",  ">>", "<>", "SWING"];
-
-let SUB_B     = [0x00,     0x01,     0x02,      0x04,      0x08,      0x10];
-let SUB_M     = ["NORMAL", "WARMUP", "DEFROST", "PREHEAT", "STANDBY", "OFF"];
-let STAGE_B   = [0x00,   0x01,  0x02,     0x03,     0x04,       0x05,   0x06];
-let STAGE_M   = ["IDLE", "LOW", "GENTLE", "MEDIUM", "MODERATE", "HIGH", "DIFFUSE"];
-let AUTOSUB_B = [0x00,       0x01,        0x02,        0x03,          0x40,            0x41,        0x43];
-let AUTOSUB_M = ["AUTO_OFF", "AUTO_COOL", "AUTO_HEAT", "AUTO_LEADER", "AUTO_INACTIVE", "AUTO_IDLE", "AUTO_ACTIVE"];
+let POWER_T   = ",00OFF,01ON,";
+let MODE_T    = ",01HEAT,02DRY,03COOL,07FAN,08AUTO,";
+let FAN_T     = ",00AUTO,01QUIET,021,032,053,064,";
+let VANE_T    = ",00AUTO,011,022,033,044,055,07SWING,";
+let WVANE_T   = ",01<<,02<,03|,04>,05>>,08<>,0CSWING,";
+let SUB_T     = ",00NORMAL,01WARMUP,02DEFROST,04PREHEAT,08STANDBY,10OFF,";
+let STAGE_T   = ",00IDLE,01LOW,02GENTLE,03MEDIUM,04MODERATE,05HIGH,06DIFFUSE,";
+let AUTOSUB_T = ",00AUTO_OFF,01AUTO_COOL,02AUTO_HEAT,03AUTO_LEADER,40AUTO_INACTIVE,41AUTO_IDLE,43AUTO_ACTIVE,";
 
 let C1_POWER = 0x01, C1_MODE = 0x02, C1_TEMP = 0x04, C1_FAN = 0x08, C1_VANE = 0x10;
 let C2_WVANE = 0x01;
@@ -131,21 +122,9 @@ let remoteTempSentAt = 0;
 let remoteTempSource = "internal";
 let remoteTempSentVal = 0;
 
-let _sfcOk = false;
-try { _sfcOk = (String.fromCharCode(0).length === 1); } catch (e0) { _sfcOk = false; }
-let _hasChr = false;
-try { _hasChr = (chr(65) === "A" && chr(0).length === 1); } catch (e) { _hasChr = false; }
+function C(n) { return String.fromCharCode(n & 0xFF); }
 
-function C(n) {
-  if (_sfcOk) { return String.fromCharCode(n & 0xFF); }
-  if (_hasChr) { return chr(n & 0xFF); }
-  return String.fromCharCode(n & 0xFF);
-}
-
-function B(s, i) {
-  if (s.charCodeAt) { return s.charCodeAt(i) & 0xFF; }
-  return s.at(i) & 0xFF;
-}
+function B(s, i) { return s.charCodeAt(i) & 0xFF; }
 
 function hex(n) {
   let h = "0123456789ABCDEF";
@@ -231,20 +210,30 @@ function auxTick() {
   }
 }
 
-function idxOfByte(arr, v) {
-  for (let i = 0; i < arr.length; i++) { if (arr[i] === v) { return i; } }
+function tName(t, v, fb) {
+  let p = t.indexOf("," + hex(v));
+  if (p < 0) { return fb; }
+  return t.substring(p + 3, t.indexOf(",", p + 3));
+}
+
+function tByte(t, n) {
+  let p = 0;
+  while (p < t.length - 1) {
+    let e = t.indexOf(",", p + 1);
+    if (t.substring(p + 3, e) === n) { return parseInt(t.substr(p + 1, 2), 16); }
+    p = e;
+  }
   return -1;
 }
 
-function idxOfStr(arr, v) {
-  for (let i = 0; i < arr.length; i++) { if (arr[i] === v) { return i; } }
-  return -1;
-}
-
-function mapByte(bArr, mArr, v, fallback) {
-  let i = idxOfByte(bArr, v);
-  if (i < 0) { return fallback; }
-  return mArr[i];
+function tNames(t) {
+  let a = [], p = 0;
+  while (p < t.length - 1) {
+    let e = t.indexOf(",", p + 1);
+    a.push(t.substring(p + 3, e));
+    p = e;
+  }
+  return a;
 }
 
 function frameOut(b) {
@@ -259,14 +248,8 @@ function frameOut(b) {
   return s;
 }
 
-function newSetPacket(cmd) {
-  let b = [0xFC, 0x41, 0x01, 0x30, 0x10, cmd];
-  for (let i = 6; i <= 20; i++) { b.push(0x00); }
-  return b;
-}
-
-function newInfoPacket(code) {
-  let b = [0xFC, 0x42, 0x01, 0x30, 0x10, code];
+function newPacket(t, code) {
+  let b = [0xFC, t, 0x01, 0x30, 0x10, code];
   for (let i = 6; i <= 20; i++) { b.push(0x00); }
   return b;
 }
@@ -277,8 +260,7 @@ function newConnectPacket() {
 
 function uartWrite(s) {
   if (uart === null) { return 0; }
-  if (uart.send) { return uart.send(s); }
-  return uart.write(s);
+  return uart.send(s);
 }
 
 function sendFrame(b, newState) {
@@ -384,10 +366,10 @@ function decodeSettings(f) {
   let d3 = f[8], d4 = f[9], d5 = f[10], d6 = f[11], d7 = f[12];
   let d10 = f[15], d11 = f[16];
 
-  cur.power = mapByte(POWER_B, POWER_M, d3, cur.power);
+  cur.power = tName(POWER_T, d3, cur.power);
   cur.iSee = (d4 > 0x08);
   let modeCode = cur.iSee ? (d4 - 0x08) : d4;
-  cur.mode = mapByte(MODE_B, MODE_M, modeCode, cur.mode);
+  cur.mode = tName(MODE_T, modeCode, cur.mode);
 
   if (d11 !== 0x00) {
     cur.temp = (d11 - 128) / 2;
@@ -396,11 +378,11 @@ function decodeSettings(f) {
     cur.temp = 31 - d5;
   }
 
-  cur.fan = mapByte(FAN_B, FAN_M, d6, cur.fan);
-  cur.vane = mapByte(VANE_B, VANE_M, d7, cur.vane);
+  cur.fan = tName(FAN_T, d6, cur.fan);
+  cur.vane = tName(VANE_T, d7, cur.vane);
 
   if (d10 !== 0) {
-    cur.wideVane = mapByte(WVANE_B, WVANE_M, d10 & 0x0F, cur.wideVane);
+    cur.wideVane = tName(WVANE_T, d10 & 0x0F, cur.wideVane);
     wvaneBit80 = ((d10 & 0xF0) === 0x80);
   }
   gotFirstSettings = true;
@@ -431,9 +413,9 @@ function decodeStatus(f) {
 
 function decodeStandby(f) {
   subModeMiss = 0;
-  cur.subMode = mapByte(SUB_B, SUB_M, f[8], cur.subMode);
-  cur.stage = mapByte(STAGE_B, STAGE_M, f[9], cur.stage);
-  cur.autoSubMode = mapByte(AUTOSUB_B, AUTOSUB_M, f[10], cur.autoSubMode);
+  cur.subMode = tName(SUB_T, f[8], cur.subMode);
+  cur.stage = tName(STAGE_T, f[9], cur.stage);
+  cur.autoSubMode = tName(AUTOSUB_T, f[10], cur.autoSubMode);
   dbg("sub mode 0x" + hex(f[8]) + " stage 0x" + hex(f[9]) + " auto 0x" + hex(f[10]));
 }
 
@@ -454,16 +436,16 @@ function subModeTimeout() {
 }
 
 function sendSet() {
-  let b = newSetPacket(0x01);
+  let b = newPacket(0x41, 0x01);
   let c1 = 0, c2 = 0;
 
   if (want.power !== null) {
-    let i = idxOfStr(POWER_M, want.power);
-    if (i >= 0) { b[8] = POWER_B[i]; c1 |= C1_POWER; }
+    let v = tByte(POWER_T, want.power);
+    if (v >= 0) { b[8] = v; c1 |= C1_POWER; }
   }
   if (want.mode !== null) {
-    let i = idxOfStr(MODE_M, want.mode);
-    if (i >= 0) { b[9] = MODE_B[i]; c1 |= C1_MODE; }
+    let v = tByte(MODE_T, want.mode);
+    if (v >= 0) { b[9] = v; c1 |= C1_MODE; }
   }
   if (want.temp > 0) {
     let t = want.temp;
@@ -477,16 +459,16 @@ function sendSet() {
     c1 |= C1_TEMP;
   }
   if (want.fan !== null) {
-    let i = idxOfStr(FAN_M, want.fan);
-    if (i >= 0) { b[11] = FAN_B[i]; c1 |= C1_FAN; }
+    let v = tByte(FAN_T, want.fan);
+    if (v >= 0) { b[11] = v; c1 |= C1_FAN; }
   }
   if (want.vane !== null) {
-    let i = idxOfStr(VANE_M, want.vane);
-    if (i >= 0) { b[12] = VANE_B[i]; c1 |= C1_VANE; }
+    let v = tByte(VANE_T, want.vane);
+    if (v >= 0) { b[12] = v; c1 |= C1_VANE; }
   }
   if (want.wideVane !== null) {
-    let i = idxOfStr(WVANE_M, want.wideVane);
-    if (i >= 0) { b[18] = WVANE_B[i] | (wvaneBit80 ? 0x80 : 0x00); c2 |= C2_WVANE; }
+    let v = tByte(WVANE_T, want.wideVane);
+    if (v >= 0) { b[18] = v | (wvaneBit80 ? 0x80 : 0x00); c2 |= C2_WVANE; }
   }
 
   if (c1 === 0 && c2 === 0) { clearWant(); return; }
@@ -506,7 +488,7 @@ function clearWant() {
 }
 
 function sendRemoteTemp() {
-  let b = newSetPacket(0x07);
+  let b = newPacket(0x41, 0x07);
   if (remoteTemp > 0) {
     let r = Math.round(remoteTemp * 2);
     b[6] = 0x01;
@@ -590,7 +572,7 @@ function tick() {
   if (want.dirty && gotFirstSettings) { sendSet(); return; }
   if (remoteTempDue(now)) { sendRemoteTemp(); return; }
   if (pollIdx > 0 || now >= nextCycleAt) {
-    sendFrame(newInfoPacket(CFG.POLL[pollIdx]), ST_WAIT_RESP);
+    sendFrame(newPacket(0x42, CFG.POLL[pollIdx]), ST_WAIT_RESP);
   }
 }
 
@@ -601,11 +583,11 @@ function applyCommand(o) {
     setDebug(o.debug);
     publishMqttState();
   }
-  if (o.power !== undefined && idxOfStr(POWER_M, o.power) >= 0) { want.power = o.power; touched = true; }
-  if (o.mode !== undefined && idxOfStr(MODE_M, o.mode) >= 0) { want.mode = o.mode; touched = true; }
-  if (o.fan !== undefined && idxOfStr(FAN_M, o.fan) >= 0) { want.fan = o.fan; touched = true; }
-  if (o.vane !== undefined && idxOfStr(VANE_M, o.vane) >= 0) { want.vane = o.vane; touched = true; }
-  if (o.wideVane !== undefined && idxOfStr(WVANE_M, o.wideVane) >= 0) { want.wideVane = o.wideVane; touched = true; }
+  if (o.power !== undefined && tByte(POWER_T, o.power) >= 0) { want.power = o.power; touched = true; }
+  if (o.mode !== undefined && tByte(MODE_T, o.mode) >= 0) { want.mode = o.mode; touched = true; }
+  if (o.fan !== undefined && tByte(FAN_T, o.fan) >= 0) { want.fan = o.fan; touched = true; }
+  if (o.vane !== undefined && tByte(VANE_T, o.vane) >= 0) { want.vane = o.vane; touched = true; }
+  if (o.wideVane !== undefined && tByte(WVANE_T, o.wideVane) >= 0) { want.wideVane = o.wideVane; touched = true; }
   if (o.temp !== undefined) {
     let t = o.temp * 1;
     if (t >= CFG.MIN_TEMP && t <= CFG.MAX_TEMP) { want.temp = t; touched = true; }
@@ -639,15 +621,13 @@ function publishMqttState() {
 }
 
 function publishState() {
-  print("[cn105] " + stateJson());
+  let s = stateJson();
+  print("[cn105] " + s);
   vcSync();
-  if (CFG.MQTT_ENABLE && typeof MQTT !== "undefined" && MQTT.isConnected()) {
-    MQTT.publish(CFG.MQTT_PREFIX + "/state", stateJson(), 0, false);
-  }
+  if (mqttOk()) { MQTT.publish(CFG.MQTT_PREFIX + "/state", s, 0, false); }
 }
 
 let MQTT_KVS_KEY = "cn105_mqtt_applied";
-let mqttCurCfg = null;
 
 function mqttServer() {
   if (CFG.MQTT_HOST.indexOf(":") >= 0) { return CFG.MQTT_HOST; }
@@ -671,6 +651,7 @@ function sigTail(s, f) {
 function mqttEnsure() {
   if (!CFG.MQTT_ENABLE) {
     if (CFG.MQTT_HOST) { print("[cn105] NOTE: MQTT_HOST is set but MQTT_ENABLE is false - MQTT stays off"); }
+    bootEnd();
     return;
   }
   if (!CFG.MQTT_HOST) { mqttPrefixCheck(); return; }
@@ -678,24 +659,23 @@ function mqttEnsure() {
 }
 
 function mqttEnsureCb1(res, err, msg, ud) {
-  if (err !== 0) { print("[cn105] Mqtt.GetConfig failed: " + msg); return; }
-  mqttCurCfg = res;
-  Shelly.call("KVS.Get", { key: MQTT_KVS_KEY }, mqttEnsureCb2, null);
+  if (err !== 0) { print("[cn105] Mqtt.GetConfig failed: " + msg); bootEnd(); return; }
+  Shelly.call("KVS.Get", { key: MQTT_KVS_KEY }, mqttEnsureCb2, res);
 }
 
-function mqttEnsureCb2(res, err, msg, ud) {
+function mqttEnsureCb2(res, err, msg, mc) {
   let applied = (err === 0 && res && typeof res.value === "string") ? res.value : "";
   let prevSig = applied, cnt = 0;
   let hi = applied.indexOf("#");
   if (hi >= 0) { prevSig = applied.substr(0, hi); cnt = applied.substr(hi + 1) * 1; }
 
   let sig = mqttSig();
-  let same = (mqttCurCfg.enable === true) &&
-             (mqttCurCfg.server === mqttServer()) &&
-             ((mqttCurCfg.user || "") === CFG.MQTT_USER) &&
-             (mqttCurCfg.topic_prefix === CFG.MQTT_PREFIX) &&
-             (!CFG.MQTT_TLS || mqttCurCfg.ssl_ca === "ca.pem") &&
-             (CFG.MQTT_RPC || mqttCurCfg.enable_rpc === false) &&
+  let same = (mc.enable === true) &&
+             (mc.server === mqttServer()) &&
+             ((mc.user || "") === CFG.MQTT_USER) &&
+             (mc.topic_prefix === CFG.MQTT_PREFIX) &&
+             (!CFG.MQTT_TLS || mc.ssl_ca === "ca.pem") &&
+             (CFG.MQTT_RPC || mc.enable_rpc === false) &&
              (prevSig === sig);
   if (same) {
     if (cnt !== 0) { Shelly.call("KVS.Set", { key: MQTT_KVS_KEY, value: sig + "#0" }, null, null); }
@@ -704,6 +684,7 @@ function mqttEnsureCb2(res, err, msg, ud) {
   }
   if (prevSig === sig && cnt >= 3) {
     print("[cn105] ERROR: MQTT config did not persist after 3 attempts - configure MQTT in the web UI");
+    bootEnd();
     return;
   }
   let attempt = (prevSig === sig) ? cnt + 1 : 1;
@@ -722,17 +703,17 @@ function mqttEnsureCb2(res, err, msg, ud) {
   let prevRpc = !sigTail(prevSig, "|norpc");
   let prevTls = sigTail(prevRpc ? prevSig : prevSig.substr(0, prevSig.length - 6), "|tls");
   if (CFG.MQTT_TLS) { c.ssl_ca = "ca.pem"; }
-  else if (prevTls && mqttCurCfg.ssl_ca === "ca.pem") { c.ssl_ca = null; }
+  else if (prevTls && mc.ssl_ca === "ca.pem") { c.ssl_ca = null; }
   if (!CFG.MQTT_RPC) {
     c.enable_rpc = false; c.rpc_ntf = false; c.enable_control = false; c.status_ntf = false;
-  } else if (!prevRpc && mqttCurCfg.enable_rpc === false) {
+  } else if (!prevRpc && mc.enable_rpc === false) {
     c.enable_rpc = true; c.rpc_ntf = true; c.enable_control = true;
   }
   Shelly.call("Mqtt.SetConfig", { config: c }, mqttEnsureCb3, null);
 }
 
 function mqttEnsureCb3(res, err, msg, ud) {
-  if (err !== 0) { print("[cn105] Mqtt.SetConfig failed: " + msg); return; }
+  if (err !== 0) { print("[cn105] Mqtt.SetConfig failed: " + msg); bootEnd(); return; }
   if (res && res.restart_required) {
     print("[cn105] MQTT config applied - rebooting once to activate it");
     Timer.set(2000, false, function () { Shelly.call("Shelly.Reboot", {}, null, null); }, null);
@@ -743,77 +724,50 @@ function mqttEnsureCb3(res, err, msg, ud) {
 
 function mqttPrefixCheck() {
   Shelly.call("Mqtt.GetConfig", {}, function (res, err, msg, ud) {
-    if (err !== 0 || !res) { return; }
-    if (!res.enable) {
+    if (err === 0 && res && !res.enable) {
       print("[cn105] WARNING: device MQTT is disabled - set MQTT_HOST in CFG or enable it in the web UI");
-      return;
+    } else if (err === 0 && res && res.topic_prefix !== CFG.MQTT_PREFIX) {
+      print("[cn105] WARNING: Shelly MQTT prefix \"" + res.topic_prefix + "\" is not MQTT_PREFIX \"" + CFG.MQTT_PREFIX +
+            "\" - HA availability will not match. Set the web UI MQTT prefix (or MQTT_HOST).");
     }
-    if (res.topic_prefix !== CFG.MQTT_PREFIX) {
-      print("[cn105] WARNING: Shelly MQTT prefix is \"" + res.topic_prefix + "\" but CFG.MQTT_PREFIX is \"" +
-            CFG.MQTT_PREFIX + "\" - the HA package availability topic will not match. " +
-            "Set the web UI MQTT prefix to \"" + CFG.MQTT_PREFIX + "\" (or set MQTT_HOST to let the script do it).");
-    }
+    bootEnd();
   }, null);
 }
 
 let haDiscPublished = false;
 
 function haDiscoveryJson() {
-  let st = CFG.MQTT_PREFIX + "/state";
-  let cmd = CFG.MQTT_PREFIX + "/set";
-  let d = {
-    name: CFG.HA_NAME,
-    unique_id: CFG.HA_DISC_ID + "_cn105_climate",
-    icon: "mdi:air-conditioner",
-    device: {
-      identifiers: [CFG.HA_DISC_ID + "-cn105-pill"],
-      name: CFG.HA_DEVICE_NAME,
-      manufacturer: "Mitsubishi Electric",
-      model: "CN105 via Shelly Pill"
-    },
-    min_temp: CFG.MIN_TEMP,
-    max_temp: CFG.MAX_TEMP,
-    temp_step: 0.5,
-    precision: 0.5,
-    modes: ["off", "heat", "dry", "cool", "fan_only", "auto"],
-    fan_modes: ["auto", "quiet", "1", "2", "3", "4"],
-    swing_modes: ["auto", "1", "2", "3", "4", "5", "swing"],
-    mode_command_topic: cmd,
-    mode_command_template: "{% if value == 'off' %}{\"power\":\"OFF\"}{% else %}{\"power\":\"ON\",\"mode\":\"{{ {'heat':'HEAT','dry':'DRY','cool':'COOL','fan_only':'FAN','auto':'AUTO'}.get(value,'AUTO') }}\"}{% endif %}",
-    temperature_command_topic: cmd,
-    temperature_command_template: "{\"temp\": {{ value }}}",
-    fan_mode_command_topic: cmd,
-    fan_mode_command_template: "{\"fan\": \"{{ value | upper }}\"}",
-    swing_mode_command_topic: cmd,
-    swing_mode_command_template: "{\"vane\": \"{{ value | upper }}\"}",
-    mode_state_topic: st,
-    mode_state_template: "{% if value_json.power == 'OFF' %}off{% else %}{{ {'HEAT':'heat','DRY':'dry','COOL':'cool','FAN':'fan_only','AUTO':'auto'}.get(value_json.mode,'off') }}{% endif %}",
-    temperature_state_topic: st,
-    temperature_state_template: "{{ value_json.temp }}",
-    current_temperature_topic: st,
-    current_temperature_template: "{{ value_json.room_temp }}",
-    fan_mode_state_topic: st,
-    fan_mode_state_template: "{{ value_json.fan | lower }}",
-    swing_mode_state_topic: st,
-    swing_mode_state_template: "{{ value_json.vane | lower }}",
-    action_topic: st,
-    action_template: "{% if value_json.power == 'OFF' %}off{% elif value_json.defrost and value_json.mode in ['HEAT','AUTO'] %}defrosting{% elif not value_json.operating %}idle{% else %}{{ {'HEAT':'heating','COOL':'cooling','DRY':'drying','FAN':'fan','AUTO':'idle'}.get(value_json.mode,'idle') }}{% endif %}"
-  };
-
-  try {
-    let mc = Shelly.getComponentConfig("mqtt");
-    if (mc && mc.topic_prefix) {
-      d.availability_topic = mc.topic_prefix + "/online";
-      d.payload_available = "true";
-      d.payload_not_available = "false";
-    }
-  } catch (eMc) { }
-
-  try {
-    let ws = Shelly.getComponentStatus("wifi");
-    if (ws && ws.sta_ip) { d.device.configuration_url = "http://" + ws.sta_ip + "/"; }
-  } catch (eWs) { }
-  return JSON.stringify(d);
+  let t = null, ip = null, id = CFG.HA_DISC_ID;
+  try { t = Shelly.getComponentConfig("mqtt").topic_prefix; } catch (eMc) { }
+  try { ip = Shelly.getComponentStatus("wifi").sta_ip; } catch (eWs) { }
+  return '{"~":"' + CFG.MQTT_PREFIX + '","name":' + JSON.stringify(CFG.HA_NAME) + ',"uniq_id":"' + id +
+    '_cn105_climate","ic":"mdi:air-conditioner","dev":{"ids":["' + id + '-cn105-pill"],"name":' +
+    JSON.stringify(CFG.HA_DEVICE_NAME) + ',"mf":"Mitsubishi Electric","mdl":"CN105 via Shelly Pill"' +
+    (ip ? ',"cu":"http://' + ip + '/"' : "") + '},"min_temp":' + JSON.stringify(CFG.MIN_TEMP) +
+    ',"max_temp":' + JSON.stringify(CFG.MAX_TEMP) +
+    (t ? ',"avty_t":"' + t + '/online","pl_avail":"true","pl_not_avail":"false"' : "") +
+    ',"temp_step":0.5,"precision":0.5,"modes":["off","heat","dry","cool","fan_only","auto"],' +
+    '"fan_modes":["auto","quiet","1","2","3","4"],"swing_modes":["auto","1","2","3","4","5","swing"]' +
+    ',"mode_cmd_t":"~/set"' +
+    ',"mode_cmd_tpl":"{% if value==\'off\' %}{\\"power\\":\\"OFF\\"}{% else %}{\\"power\\":\\"ON\\",\\"mode\\":\\"{{\'FAN\' if value==\'fan_only\' else value|upper}}\\"}{% endif %}"' +
+    ',"temp_cmd_t":"~/set"' +
+    ',"temp_cmd_tpl":"{\\"temp\\":{{value}}}"' +
+    ',"fan_mode_cmd_t":"~/set"' +
+    ',"fan_mode_cmd_tpl":"{\\"fan\\":\\"{{value|upper}}\\"}"' +
+    ',"swing_mode_cmd_t":"~/set"' +
+    ',"swing_mode_cmd_tpl":"{\\"vane\\":\\"{{value|upper}}\\"}"' +
+    ',"mode_stat_t":"~/state"' +
+    ',"mode_stat_tpl":"{% set j=value_json %}{{\'off\' if j.power==\'OFF\' or not j.mode else \'fan_only\' if j.mode==\'FAN\' else j.mode|lower}}"' +
+    ',"temp_stat_t":"~/state"' +
+    ',"temp_stat_tpl":"{{value_json.temp}}"' +
+    ',"curr_temp_t":"~/state"' +
+    ',"curr_temp_tpl":"{{value_json.room_temp}}"' +
+    ',"fan_mode_stat_t":"~/state"' +
+    ',"fan_mode_stat_tpl":"{{value_json.fan|lower}}"' +
+    ',"swing_mode_stat_t":"~/state"' +
+    ',"swing_mode_stat_tpl":"{{value_json.vane|lower}}"' +
+    ',"act_t":"~/state"' +
+    ',"act_tpl":"{% set j=value_json %}{{\'off\' if j.power==\'OFF\' else \'defrosting\' if j.defrost and j.mode in [\'HEAT\',\'AUTO\'] else {\'HEAT\':\'heating\',\'COOL\':\'cooling\',\'DRY\':\'drying\',\'FAN\':\'fan\'}.get(j.mode,\'idle\') if j.operating else \'idle\'}}"}';
 }
 
 function haDiscoveryPublish() {
@@ -828,6 +782,18 @@ function haStatusCb(topic, msg) {
   if (msg === "online") { haDiscoveryPublish(); }
 }
 
+function bootEnd() {
+  if (boot === null) { return; }
+  let disc = haDiscoveryInit;
+  boot = null; bootRetry = null; serialGetCb = null; serialSet = null; serialSetCb = null; startUart = null;
+  startDiag = null; startAux = null; afterVcs = null; isJsUart = null; bthomeInit = null; ensureVcs = null;
+  vcEnsureNext = null; vcEnsureCb = null; vcCfgFor = null; vcAdvanceCb = null; vcAddCb = null; vcFinish = null;
+  vcBind = null; mqttEnsure = null; mqttEnsureCb1 = null; mqttEnsureCb2 = null; mqttEnsureCb3 = null;
+  mqttServer = null; mqttSig = null; sigTail = null; mqttPrefixCheck = null; haDiscoveryInit = null;
+  vcDef = null;
+  disc();
+}
+
 function haDiscoveryInit() {
   if (!CFG.MQTT_ENABLE || !CFG.HA_DISCOVERY || typeof MQTT === "undefined") { return; }
   mqttSub(CFG.HA_DISC_PREFIX + "/status", haStatusCb);
@@ -839,22 +805,25 @@ function haDiscoveryInit() {
 
 let VC_GROUP_ID = 206;
 
-let VC_DEFS = [
-  { ns: "Boolean", type: "boolean", id: 200, cfg: { name: "Power", meta: { ui: { view: "toggle" } } } },
-  { ns: "Enum",    type: "enum",    id: 201, cfg: { name: "Mode",  options: MODE_M,  meta: { ui: { view: "dropdown" } } } },
-  { ns: "Enum",    type: "enum",    id: 202, cfg: { name: "Fan",   options: FAN_M,   meta: { ui: { view: "dropdown" } } } },
-  { ns: "Enum",    type: "enum",    id: 203, cfg: { name: "Vane",  options: VANE_M,  meta: { ui: { view: "dropdown" } } } },
-  { ns: "Enum",    type: "enum",    id: 204, cfg: { name: "WVane", options: WVANE_M, meta: { ui: { view: "dropdown" } } } },
-  { ns: "Number",  type: "number",  id: 205, cfg: { name: "Target temperature",
-                     min: CFG.MIN_TEMP, max: CFG.MAX_TEMP,
+let vcD = null;
 
-                     default_value: Math.round((CFG.MIN_TEMP + CFG.MAX_TEMP) / 2),
-                     meta: { ui: { view: "slider", unit: "°C", step: 0.5 } } } },
-  { ns: "Number",  type: "number",  id: 207, cfg: { name: "Room temperature", min: 0, max: 50,
-                     default_value: 20,
-                     meta: { ui: { view: "label", unit: "°C", step: 0.5 } } } },
-  { ns: "Group",   type: "group",   id: 206, cfg: { name: CFG.VC_GROUP_NAME } }
-];
+function vcDef(i) {
+  let ns = i === 0 ? "Boolean" : i < 5 ? "Enum" : i < 7 ? "Number" : "Group";
+  let c;
+  if (i === 0) { c = { name: "Power", meta: { ui: { view: "toggle" } } }; }
+  else if (i < 5) {
+    c = { name: ["Mode", "Fan", "Vane", "WVane"][i - 1], options: tNames([MODE_T, FAN_T, VANE_T, WVANE_T][i - 1]),
+          meta: { ui: { view: "dropdown" } } };
+  } else if (i === 5) {
+    c = { name: "Target temperature", min: CFG.MIN_TEMP, max: CFG.MAX_TEMP,
+          default_value: Math.round((CFG.MIN_TEMP + CFG.MAX_TEMP) / 2),
+          meta: { ui: { view: "slider", unit: "°C", step: 0.5 } } };
+  } else if (i === 6) {
+    c = { name: "Room temperature", min: 0, max: 50, default_value: 20,
+          meta: { ui: { view: "label", unit: "°C", step: 0.5 } } };
+  } else { c = { name: CFG.VC_GROUP_NAME }; }
+  return { ns: ns, type: ns.toLowerCase(), id: [200, 201, 202, 203, 204, 205, 207, 206][i], cfg: c };
+}
 
 let vcH = { power: null, mode: null, fan: null, vane: null, wvane: null, temp: null, room: null };
 
@@ -872,12 +841,13 @@ function ensureVcs() {
 }
 
 function vcEnsureNext() {
-  if (vcIdx >= VC_DEFS.length) { vcFinish(); return; }
-  Shelly.call(VC_DEFS[vcIdx].ns + ".GetConfig", { id: VC_DEFS[vcIdx].id }, vcEnsureCb, null);
+  if (vcIdx >= 8) { vcFinish(); return; }
+  vcD = vcDef(vcIdx);
+  Shelly.call(vcD.ns + ".GetConfig", { id: vcD.id }, vcEnsureCb, null);
 }
 
 function vcEnsureCb(res, err, msg, ud) {
-  let d = VC_DEFS[vcIdx];
+  let d = vcD;
   if (err === 0) {
     Shelly.call(d.ns + ".SetConfig", { id: d.id, config: vcCfgFor(d, res) }, vcAdvanceCb, null);
     return;
@@ -904,14 +874,14 @@ function vcAdvanceCb(res, err, msg, ud) {
 
 function vcAddCb(res, err, msg, ud) {
   if (err !== 0) {
-    print("[cn105] VC creation failed (" + VC_DEFS[vcIdx].type + ":" +
-          JSON.stringify(VC_DEFS[vcIdx].id) + "): " + msg);
+    print("[cn105] VC creation failed (" + vcD.type + ":" + JSON.stringify(vcD.id) + "): " + msg);
   }
   vcIdx++;
   vcEnsureNext();
 }
 
 function vcFinish() {
+  vcD = null;
   Shelly.call("Group.Set", { id: VC_GROUP_ID, value: [
     "boolean:200", "enum:201", "enum:202", "enum:203", "enum:204", "number:205", "number:207"
   ] }, null, null);
@@ -927,7 +897,6 @@ function vcBind() {
   vcH.wvane = Virtual.getHandle("enum:204");
   vcH.temp  = Virtual.getHandle("number:205");
   vcH.room  = Virtual.getHandle("number:207");
-  let ok = true;
   try {
     if (vcH.power) { vcH.power.on("change", onVcPower); }
     if (vcH.mode)  { vcH.mode.on("change", onVcMode); }
@@ -935,24 +904,9 @@ function vcBind() {
     if (vcH.vane)  { vcH.vane.on("change", onVcVane); }
     if (vcH.wvane) { vcH.wvane.on("change", onVcWVane); }
     if (vcH.temp)  { vcH.temp.on("change", onVcTemp); }
-  } catch (eOn) { ok = false; }
-  if (!ok) {
-    Shelly.addStatusHandler(vcStatusFallback, null);
-    print("[cn105] VC on(change) not supported - falling back to status handler");
-  }
+  } catch (eOn) { print("[cn105] VC change events not supported - app control disabled"); }
   print("[cn105] Virtual components ready (group " + CFG.VC_GROUP_NAME + ")");
   vcSync();
-}
-
-function vcStatusFallback(st, ud) {
-  if (!st || !st.delta || st.delta.value === undefined) { return; }
-  let ev = { source: "status", value: st.delta.value };
-  if (st.component === "boolean:200") { onVcPower(ev); }
-  else if (st.component === "enum:201") { onVcMode(ev); }
-  else if (st.component === "enum:202") { onVcFan(ev); }
-  else if (st.component === "enum:203") { onVcVane(ev); }
-  else if (st.component === "enum:204") { onVcWVane(ev); }
-  else if (st.component === "number:205") { onVcTemp(ev); }
 }
 
 function vcFromScript(ev) {
@@ -1127,13 +1081,7 @@ function startUart() {
   }
 
   let ok = false;
-  try { ok = (uart.configure({ baud: CFG.BAUD, mode: CFG.FORMAT, format: CFG.FORMAT }) !== false); } catch (e3) { ok = false; }
-  if (!ok) {
-    try { ok = (uart.configure({ baud: CFG.BAUD, mode: CFG.FORMAT }) !== false); } catch (e4) { ok = false; }
-  }
-  if (!ok) {
-    try { ok = (uart.configure({ baud: CFG.BAUD, format: CFG.FORMAT }) !== false); } catch (e5) { ok = false; }
-  }
+  try { ok = (uart.configure({ baud: CFG.BAUD, format: CFG.FORMAT }) !== false); } catch (e3) { ok = false; }
   if (!ok && serialCfgOk) {
     print("[cn105] uart.configure unavailable; Serial component is " +
           JSON.stringify(CFG.BAUD) + " " + CFG.FORMAT + " -> continuing");
@@ -1190,11 +1138,8 @@ function startUart() {
 }
 
 function startDiag() {
-  Shelly.call("Shelly.GetDeviceInfo", {}, function (res, err, msg, ud) {
-    if (err === 0 && res) {
-      print("[cn105] fw=" + res.ver + " app=" + res.app);
-    }
-  }, null);
+  let di = Shelly.getDeviceInfo();
+  print("[cn105] fw=" + di.ver + " app=" + di.app);
   Shelly.call("Pill.GetConfig", {}, function (res, err, msg, ud) {
     if (err !== 0) {
       print("[cn105] Pill.GetConfig not available (" + msg + ")");
@@ -1219,7 +1164,7 @@ let bootTries = 0;
 function startAux() {
   startDiag();
   bthomeInit();
-  Timer.set(1500, false, function () { ensureVcs(); haDiscoveryInit(); }, null);
+  Timer.set(1500, false, ensureVcs, null);
 }
 
 function afterVcs() {

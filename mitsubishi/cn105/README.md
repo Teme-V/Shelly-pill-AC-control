@@ -149,10 +149,12 @@ Wide vane `enum:204`, Target temperature `number:205`, Room temperature `number:
 
 Firmware 2.0.1 stops a script that has more than five RPC calls in flight at once
 (`Too many calls in progress`). The script therefore starts in stages, one after another:
-serial port and CN105 link first, then diagnostics, then the virtual components and
-finally the MQTT broker settings (only with `MQTT_ENABLE: true` and `MQTT_HOST` set, section 4). If you add your
-own `Shelly.call()`s, start them after the `Virtual components ready` line, not at the top
-level of the script.
+serial port and CN105 link first, then diagnostics, then the virtual components, then the
+MQTT broker settings (only with `MQTT_ENABLE: true` and `MQTT_HOST` set, section 4) and last
+the Home Assistant discovery message (`HA_DISCOVERY: true`). After that the script releases
+the functions it needed only for starting, to leave memory free. If you add your own
+`Shelly.call()`s, start them after the `Virtual components ready` line, not at the top level of
+the script.
 
 ## 4. MQTT and Home Assistant (optional)
 
@@ -430,6 +432,7 @@ if MQTT is down longer, the oldest lines are dropped and the next message starts
 | `No reply to CONNECT, retrying` forever | Wiring (TX/RX crossed, missing GND, level shifter unpowered) or the unit is not powered. Also check that the log says `UART 2400 8E1` — CN105 needs **even parity**. |
 | `Pill is NOT in js_uart mode` or `UART API not available` | The peripheral mode is wrong. Select **Serial Communication (UART)** in the Shelly app or web UI (section 2). |
 | `Serial.SetConfig failed` or `boot gave up` | The serial port could not be set to `js_uart` 2400 8E1. Check that the firmware is 2.0.1 or later and **Serial Communication (UART)** is selected (section 2). |
+| Script stops with `out_of_memory` (Script status in the web UI) | All scripts on the Pill share 25 200 bytes of memory. Up to `20261116-2`, MQTT with `HA_DISCOVERY: true` could exceed it on firmware 2.2.0 - at the start right after the reboot that applies `MQTT_HOST`, or when Home Assistant restarted. Use `20261116-3` or later (about 13 300 bytes in use, peak about 19 100 at start). If you run other scripts on the same Pill, check `mem_peak` in `Script.GetStatus`. |
 | Script stops right after start with `Too many calls in progress` | More than five RPC calls were in flight. The shipped script never does this; if you added your own `Shelly.call()`s, move them after start-up (see *Start-up order*). |
 | `Unit does not answer 0x09 -> sub mode / defrost not available` | Normal on units without the `0x09` reply. The script stops asking; everything else works. |
 | `BTHome remote temp: several sensors …` | More than one BTHome temperature sensor is paired. Set `REMOTE_TEMP_BTHOME_ID` to the id you want (section 4, *Feeding an external room temperature*). |
@@ -462,6 +465,25 @@ minutes (default 1440, `0` = never).
   `0x09` three times in a row has it dropped from `POLL`.
 * Remote temperature `0x41 / 0x07`: `FC 41 01 30 10 07 01 <2t−16> <2t+128> 00 … chk`
   (21.5 °C → `… 07 01 1B AB … B0`); `… 07 00 00 80 … F7` returns to the unit's own sensor.
+
+## Changes in 20261116-3
+
+* **Less memory.** With MQTT and `HA_DISCOVERY: true`, firmware 2.2.0 could stop the script with
+  `out_of_memory`: at the start right after the reboot that applies `MQTT_HOST`, and whenever
+  Home Assistant restarted (its birth message makes the script publish the discovery message
+  again). All scripts on a Pill share 25 200 bytes; `20261116-2` used about 19 500 before the
+  discovery message, and building that message needed more than the rest. `20261116-3` uses about
+  13 300 bytes and peaks at about 19 100 at the start (Pill with MQTT and discovery, no heat pump).
+* The discovery message uses Home Assistant's short key names, the `~` base topic and shorter
+  templates (about 1 600 instead of 2 070 characters). Home Assistant gets the same climate entity
+  with the same `unique_id`, modes and states; the old and new templates give the same result for
+  every state (checked with Home Assistant 2026.9). It is published after the virtual components
+  and the MQTT settings instead of at the same time.
+* Inside the script: value tables are strings instead of arrays, the virtual component settings
+  are built one at a time, functions used only at the start are released afterwards, and
+  fallbacks for pre-2.0.1 development firmware were removed. UART frames, `<prefix>/state`,
+  commands and virtual components are the same as in `20261116-2`. Log changes: the `fw=` line
+  comes before the BTHome line, and the MQTT prefix warning is shorter.
 
 ## Changes in 20261116-2
 
