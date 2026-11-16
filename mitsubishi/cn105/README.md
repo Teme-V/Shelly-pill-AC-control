@@ -98,6 +98,9 @@ example shows `jsuart`. The script accepts both spellings.
    and enable **Run on startup**. For control from the Shelly app the file needs no changes;
    the `CFG` block is edited only for MQTT / Home Assistant (section 4). Optional:
    `VC_GROUP_NAME` sets the name of the virtual device in the Shelly app.
+   The web UI script editor holds at most 50 000 characters; the script is about 43 000, which
+   leaves room for your `CFG` changes. After updating the script, reload the page (Ctrl+F5 /
+   Cmd+Shift+R): an editor page that was already open keeps showing the old code.
 
 2. Watch the script log. A start looks like this, and a state line follows every poll
    cycle (~10 s):
@@ -423,6 +426,7 @@ if MQTT is down longer, the oldest lines are dropped and the next message starts
 
 | Symptom | Cause / fix |
 |---|---|
+| Typing in the web UI script editor does nothing, or a pasted script is cut off | The editor holds at most 50 000 characters. Use this script (`20261116-1` or later, about 43 000); versions up to `20261020-4` were about 60 000. If you just updated the script, reload the page (Ctrl+F5) - an open editor page keeps the old code. |
 | `No reply to CONNECT, retrying` forever | Wiring (TX/RX crossed, missing GND, level shifter unpowered) or the unit is not powered. Also check that the log says `UART 2400 8E1` — CN105 needs **even parity**. |
 | `Pill is NOT in js_uart mode` or `UART API not available` | The peripheral mode is wrong. Select **Serial Communication (UART)** in the Shelly app or web UI (section 2). |
 | `Serial.SetConfig failed` or `boot gave up` | The serial port could not be set to `js_uart` 2400 8E1. Check that the firmware is 2.0.1 or later and **Serial Communication (UART)** is selected (section 2). |
@@ -458,6 +462,15 @@ minutes (default 1440, `0` = never).
   `0x09` three times in a row has it dropped from `POLL`.
 * Remote temperature `0x41 / 0x07`: `FC 41 01 30 10 07 01 <2t−16> <2t+128> 00 … chk`
   (21.5 °C → `… 07 01 1B AB … B0`); `… 07 00 00 80 … F7` returns to the unit's own sensor.
+
+## Changes in 20261116-1
+
+* Shorter script, so it can be edited in the Pill's web UI again. The web UI script editor holds
+  at most 50 000 characters; the previous file had about 60 000, so nothing could be typed into
+  the `CFG` block (for example the MQTT settings) and a pasted copy was cut off. The long
+  instruction header and the comments outside `CFG` were removed - this README has the same
+  information - and two long `CFG` comments were shortened. The code itself did not change: the
+  UART frames, MQTT messages and virtual components are the same as in `20261020-4`.
 
 ## Changes in 20261020-4
 
