@@ -13,7 +13,7 @@
 // and echavet/MitsubishiCN105ESPHome (see NOTICE in the repository).
 // Setup, wiring, MQTT and Home Assistant: README.md at the @link above.
 // Edit only the CFG block. Pill peripheral mode: Serial Communication (js_uart).
-// version 20261116-1
+// version 20261116-2
 
 // ===================================================================
 //  CONFIGURATION - the only block you need to edit
@@ -73,6 +73,7 @@ let CFG = {
 
   // -- Shelly app (virtual components) -------------------------------
   VC_GROUP_NAME: "MitsubishiAC",  // group shown as its own virtual device in the Shelly app
+  VC_ECHO_TTL_MS: 15000,     // own VC writes: a change event this late is still an echo
 
   DEBUG: false,              // log every TX/RX frame; with MQTT also <prefix>/debug
   DEBUG_FLUSH_MS: 2000,      // <prefix>/debug: one message per this period
@@ -856,6 +857,8 @@ let VC_DEFS = [
 ];
 
 let vcH = { power: null, mode: null, fan: null, vane: null, wvane: null, temp: null, room: null };
+
+let vcEcho = [[], [], [], [], [], []];
 let vcIdx = 0;
 
 function ensureVcs() {
@@ -956,46 +959,61 @@ function vcFromScript(ev) {
   return (ev && typeof ev.source === "string" && ev.source.indexOf("script") >= 0);
 }
 
+function vcSkip(ev, k, curVal) {
+  let q = vcEcho[k];
+  let now = upMs();
+  let i = 0;
+  while (i < q.length) {
+    if (now - q[i + 1] > CFG.VC_ECHO_TTL_MS) { q.splice(i, 2); }
+    else if (q[i] === ev.value) { q.splice(i, 2); return true; }
+    else { i += 2; }
+  }
+  return vcFromScript(ev) || ev.value === curVal;
+}
+
 function onVcPower(ev) {
-  if (vcFromScript(ev)) { return; }
-  let p = ev.value ? "ON" : "OFF";
-  if (p === cur.power) { return; }
-  applyCommand({ power: p });
+  if (vcSkip(ev, 0, cur.power === null ? null : cur.power === "ON")) { return; }
+  applyCommand({ power: ev.value ? "ON" : "OFF" });
 }
 function onVcMode(ev) {
-  if (vcFromScript(ev) || ev.value === cur.mode) { return; }
+  if (vcSkip(ev, 1, cur.mode)) { return; }
   applyCommand({ mode: ev.value });
 }
 function onVcFan(ev) {
-  if (vcFromScript(ev) || ev.value === cur.fan) { return; }
+  if (vcSkip(ev, 2, cur.fan)) { return; }
   applyCommand({ fan: ev.value });
 }
 function onVcVane(ev) {
-  if (vcFromScript(ev) || ev.value === cur.vane) { return; }
+  if (vcSkip(ev, 3, cur.vane)) { return; }
   applyCommand({ vane: ev.value });
 }
 function onVcWVane(ev) {
-  if (vcFromScript(ev) || ev.value === cur.wideVane) { return; }
+  if (vcSkip(ev, 4, cur.wideVane)) { return; }
   applyCommand({ wideVane: ev.value });
 }
 function onVcTemp(ev) {
-  if (vcFromScript(ev) || ev.value === cur.temp) { return; }
+  if (vcSkip(ev, 5, cur.temp)) { return; }
   applyCommand({ temp: ev.value });
 }
 
-function vcSet(h, v) {
+function vcSet(h, v, k) {
   if (!h || v === null || v === undefined) { return; }
   if (h.getValue() === v) { return; }
+  if (k >= 0) {
+    if (vcEcho[k].length >= 4) { vcEcho[k].splice(0, 2); }
+    vcEcho[k].push(v);
+    vcEcho[k].push(upMs());
+  }
   h.setValue(v);
 }
 
 function vcSync() {
-  if (cur.power !== null) { vcSet(vcH.power, cur.power === "ON"); }
-  vcSet(vcH.mode, cur.mode);
-  vcSet(vcH.fan, cur.fan);
-  vcSet(vcH.vane, cur.vane);
-  vcSet(vcH.wvane, cur.wideVane);
-  if (cur.temp > 0) { vcSet(vcH.temp, cur.temp); }
+  if (cur.power !== null) { vcSet(vcH.power, cur.power === "ON", 0); }
+  vcSet(vcH.mode, cur.mode, 1);
+  vcSet(vcH.fan, cur.fan, 2);
+  vcSet(vcH.vane, cur.vane, 3);
+  vcSet(vcH.wvane, cur.wideVane, 4);
+  if (cur.temp > 0) { vcSet(vcH.temp, cur.temp, 5); }
   vcSet(vcH.room, cur.roomTemp);
 }
 

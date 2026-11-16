@@ -463,6 +463,15 @@ minutes (default 1440, `0` = never).
 * Remote temperature `0x41 / 0x07`: `FC 41 01 30 10 07 01 <2t−16> <2t+128> 00 … chk`
   (21.5 °C → `… 07 01 1B AB … B0`); `… 07 00 00 80 … F7` returns to the unit's own sensor.
 
+## Changes in 20261116-2
+
+* Shelly app echo guard: a change event that the Shelly app reports seconds after the script
+  updated a control no longer goes back to the pump as a new command. Two quick setpoint or mode
+  changes in a row used to send one extra SET back to the earlier value (the pump ended in the
+  right state, but it did a round trip). The script remembers what it wrote to each control for
+  `VC_ECHO_TTL_MS` (default 15 s). UART frames, MQTT messages and virtual components are otherwise
+  the same as in `20261116-1`.
+
 ## Changes in 20261116-1
 
 * Shorter script, so it can be edited in the Pill's web UI again. The web UI script editor holds
